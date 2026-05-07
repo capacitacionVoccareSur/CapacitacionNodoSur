@@ -15,7 +15,7 @@ const FIELD_COLUMN = {
 }
 
 const FIELD_OPTIONS = {
-  prioridad:             ['Urgente', 'Alta', 'Baja', 'Hecho'],
+  prioridad:             ['Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación'],
   libreria_intranet:     ['Pendiente', 'Hecho'],
   documentacion_inicial: ['Pendiente', 'En curso', '✅ Finalizado'],
   finalizado:            ['SÍ', 'NO'],

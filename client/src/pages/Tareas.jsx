@@ -2,16 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import InlineDropdown from '../components/InlineDropdown'
 
 const PAIS_OPTIONS    = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
-const PRIORIDAD_FILTER = ['Todos', 'Urgente', 'Alta', 'Baja', 'Hecho']
+const PRIORIDAD_FILTER = ['Todos', 'Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación']
 
 const FIELD_OPTIONS = {
-  prioridad:             ['Urgente', 'Alta', 'Baja', 'Hecho'],
+  prioridad:             ['Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación'],
   libreria_intranet:     ['Pendiente', 'Hecho'],
   documentacion_inicial: ['Pendiente', 'En curso', '✅ Finalizado'],
   finalizado:            ['SÍ', 'NO'],
 }
 
-const PRIORITY_ORDER = { 'Urgente': 0, 'Alta': 1, 'Baja': 2, 'Hecho': 3, '': 4 }
+const PRIORITY_ORDER = { 'Urgente': 0, 'Alta': 1, 'Baja': 2, 'Solo documentación': 2.5, 'Hecho': 3, '': 4 }
 
 function isFullyCompleted(task) {
   return (
@@ -22,11 +22,12 @@ function isFullyCompleted(task) {
   )
 }
 
-function rowBorderColor(prioridad) {
+function rowHighlightClasses(prioridad) {
   if (prioridad === 'Urgente') return 'border-l-4 border-l-red-600'
   if (prioridad === 'Alta')    return 'border-l-4 border-l-red-300'
   if (prioridad === 'Baja')    return 'border-l-4 border-l-yellow-400'
   if (prioridad === 'Hecho')   return 'border-l-4 border-l-green-400'
+  if (prioridad === 'Solo documentación') return 'border-l-4 border-l-blue-500 bg-blue-50/60'
   return 'border-l-4 border-l-transparent'
 }
 
@@ -151,6 +152,7 @@ function TareasTable({ tasks, onFieldChange, onReopen, onEdit, onDelete, isFinal
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <th className="px-2 py-1.5 text-center w-8 text-gray-400">#</th>
             <th className="text-left px-2 py-1.5 w-4"></th>
             <th className="text-left px-2 py-1.5">Tarea</th>
             <th className="px-2 py-1.5 text-center whitespace-nowrap">País</th>
@@ -165,12 +167,17 @@ function TareasTable({ tasks, onFieldChange, onReopen, onEdit, onDelete, isFinal
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {tasks.map(task => (
+          {tasks.map((task, idx) => (
             <tr
               key={task.rowIndex}
-              className={`${rowBorderColor(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
+              className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
                 ${isFinalizados ? 'opacity-70' : ''}`}
             >
+              {/* Número */}
+              <td className="px-2 py-1 text-center font-bold text-gray-300">
+                {idx + 1}
+              </td>
+
               {/* Prioridad */}
               <td className="px-2 py-1 text-center">
                 {isFinalizados
@@ -356,7 +363,7 @@ function TareaFormModal({ title, initial = {}, onClose, onSave }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Prioridad</label>
               <select value={prioridad} onChange={e => setPrioridad(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                {['Urgente','Alta','Baja','Hecho'].map(p => <option key={p}>{p}</option>)}
+                {['Urgente','Alta','Baja','Hecho','Solo documentación'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
@@ -462,7 +469,7 @@ function NuevaTareaModal({ onClose, onCreated }) {
                 onChange={e => setPrioridad(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               >
-                {['Urgente', 'Alta', 'Baja'].map(p => <option key={p}>{p}</option>)}
+                {['Urgente', 'Alta', 'Baja', 'Solo documentación'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
