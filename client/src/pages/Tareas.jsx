@@ -113,21 +113,22 @@ function ReopenModal({ task, onConfirm, onCancel }) {
 }
 
 const COUNTRY_COLORS = {
-  'Argentina': 'bg-blue-50 text-blue-700 border-blue-100',
-  'Bolivia':   'bg-green-50 text-green-700 border-green-100',
-  'Chile':     'bg-red-50 text-red-700 border-red-100',
-  'Ecuador':   'bg-yellow-50 text-yellow-700 border-yellow-100',
-  'Paraguay':  'bg-indigo-50 text-indigo-700 border-indigo-100',
-  'Peru':      'bg-red-50 text-red-800 border-red-200',
-  'Uruguay':   'bg-sky-50 text-sky-700 border-sky-100',
-  'General':   'bg-gray-50 text-gray-700 border-gray-100',
-  'Colombia':  'bg-orange-50 text-orange-700 border-orange-100',
-  'Venezuela': 'bg-yellow-50 text-yellow-800 border-yellow-200',
+  'argentina': 'bg-blue-50 text-blue-700 border-blue-100',
+  'bolivia':   'bg-green-50 text-green-700 border-green-100',
+  'chile':     'bg-red-50 text-red-700 border-red-100',
+  'ecuador':   'bg-yellow-50 text-yellow-700 border-yellow-100',
+  'paraguay':  'bg-indigo-50 text-indigo-700 border-indigo-100',
+  'peru':      'bg-red-50 text-red-800 border-red-200',
+  'uruguay':   'bg-sky-50 text-sky-700 border-sky-100',
+  'general':   'bg-gray-50 text-gray-700 border-gray-100',
+  'colombia':  'bg-orange-50 text-orange-700 border-orange-100',
+  'venezuela': 'bg-yellow-50 text-yellow-800 border-yellow-200',
 }
 
 function CountryBadge({ pais }) {
   if (!pais || pais === '—') return <span className="text-gray-300">—</span>
-  const colorClass = COUNTRY_COLORS[pais] || 'bg-gray-50 text-gray-600 border-gray-100'
+  const key = pais.toLowerCase()
+  const colorClass = COUNTRY_COLORS[key] || 'bg-gray-50 text-gray-600 border-gray-100'
   return (
     <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border ${colorClass}`}>
       {pais}
