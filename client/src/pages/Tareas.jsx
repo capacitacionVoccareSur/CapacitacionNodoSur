@@ -27,7 +27,7 @@ function rowHighlightClasses(prioridad) {
   if (prioridad === 'Alta')    return 'border-l-4 border-l-red-300'
   if (prioridad === 'Baja')    return 'border-l-4 border-l-yellow-400'
   if (prioridad === 'Hecho')   return 'border-l-4 border-l-green-400'
-  if (prioridad === 'Solo documentación') return 'border-l-4 border-l-blue-500 bg-blue-50/60'
+  if (prioridad === 'Solo documentación') return 'border-l-4 border-l-yellow-300 bg-yellow-50/70'
   return 'border-l-4 border-l-transparent'
 }
 
