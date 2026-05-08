@@ -242,17 +242,22 @@ router.post('/automatizar', async (req, res) => {
   }
 
   try {
+    // Simplificamos la petición: Apps Script a veces prefiere peticiones más limpias
+    // para evitar redirecciones de login en cuentas de Workspace
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       redirect: 'follow'
     })
 
     const contentType = response.headers.get('content-type')
     if (!contentType || !contentType.includes('application/json')) {
       const text = await response.text()
-      console.error('Apps Script HTML Response:', text.substring(0, 500))
-      throw new Error('El script de Google devolvió una página HTML en lugar de datos. Asegúrate de que el Script esté publicado como "Web App", que la URL sea la de "/exec" y que el acceso esté configurado para "Anyone".')
+      // Buscamos si hay un mensaje de error común en el HTML
+      if (text.includes('Unauthorized') || text.includes('login.google.com')) {
+        throw new Error('Permisos insuficientes: El script requiere login. Verifica en "Gestionar implementaciones" que el acceso sea "Cualquiera" (no solo de tu dominio) y que se ejecute como "Yo".')
+      }
+      console.error('Apps Script Response (Full):', text)
+      throw new Error('El script de Google no respondió con datos válidos. Verifica la consola del servidor para más detalles.')
     }
 
     const result = await response.json()
