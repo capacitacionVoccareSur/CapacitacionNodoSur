@@ -106,4 +106,4 @@ async function moveRow(sourceSheet, targetSheet, rowIndex, rowData) {
   await deleteRow(sourceSheet, rowIndex)
 }
 
-module.exports = { getSheetValues, updateSheetCell, appendRow, deleteRow, moveRow }
+module.exports = { getSheetsClient, getSheetValues, updateSheetCell, appendRow, deleteRow, moveRow }

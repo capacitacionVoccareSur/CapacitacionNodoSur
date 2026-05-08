@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import * as XLSX from 'xlsx'
+import XLSX from 'xlsx-js-style'
 import CoordinadoresTable from '../components/CoordinadoresTable'
 import CoordinadorModal from '../components/CoordinadorModal'
 import ImportModal from '../components/ImportModal'
@@ -113,23 +113,76 @@ export default function Coordinadores() {
   }
 
   const handleExportExcel = () => {
-    const data = filtered.map(c => ({
-      'Nombre': c.nombre,
-      'Argentina %': c.argentina || 0,
-      'Chile %': c.chile || 0,
-      'Ecuador %': c.ecuador || 0,
-      'Perú %': c.peru || 0,
-      'Bolivia %': c.bolivia || 0,
-      'Paraguay %': c.paraguay || 0,
-      'Uruguay %': c.uruguay || 0,
-      'Promedio %': avg(c)
-    }))
+    // 1. Preparar encabezados con estilo
+    const headerStyle = {
+      fill: { fgColor: { rgb: "4F46E5" } }, // Indigo-600
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center" }
+    }
 
-    const ws = XLSX.utils.json_to_sheet(data)
+    const header = [
+      { v: 'Nombre', s: headerStyle },
+      { v: 'Argentina %', s: headerStyle },
+      { v: 'Chile %', s: headerStyle },
+      { v: 'Ecuador %', s: headerStyle },
+      { v: 'Perú %', s: headerStyle },
+      { v: 'Bolivia %', s: headerStyle },
+      { v: 'Paraguay %', s: headerStyle },
+      { v: 'Uruguay %', s: headerStyle },
+      { v: 'Promedio %', s: headerStyle }
+    ]
+
+    // 2. Función para dar estilo a las celdas según el valor
+    const getCellWithStyle = (val, isName = false) => {
+      if (isName) return { v: val, s: { font: { bold: true } } }
+      
+      let color = "FFFFFF" // Blanco
+      if (val === 100) color = "DCFCE7" // Verde (bg-green-100)
+      else if (val === 50) color = "FEF9C3" // Amarillo (bg-yellow-100)
+      else if (val === 0) color = "F3F4F6" // Gris (bg-gray-100)
+
+      return {
+        v: val,
+        s: {
+          fill: { fgColor: { rgb: color } },
+          alignment: { horizontal: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } }
+          }
+        }
+      }
+    }
+
+    // 3. Preparar datos
+    const dataRows = filtered.map(c => [
+      getCellWithStyle(c.nombre, true),
+      getCellWithStyle(c.argentina || 0),
+      getCellWithStyle(c.chile || 0),
+      getCellWithStyle(c.ecuador || 0),
+      getCellWithStyle(c.peru || 0),
+      getCellWithStyle(c.bolivia || 0),
+      getCellWithStyle(c.paraguay || 0),
+      getCellWithStyle(c.uruguay || 0),
+      getCellWithStyle(avg(c))
+    ])
+
+    // 4. Crear el libro y la hoja
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Coordinadores')
+
+    // Ajustar anchos
+    ws['!cols'] = [
+      { wch: 30 }, // Nombre
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Países
+      { wch: 15 }  // Promedio
+    ]
+    
     XLSX.writeFile(wb, `Coordinadores_${new Date().toISOString().split('T')[0]}.xlsx`)
-    showToast('✓ Excel generado')
+    showToast('✓ Excel con diseño generado')
   }
 
   const handleExportSheets = async () => {
