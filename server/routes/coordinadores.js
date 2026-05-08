@@ -139,7 +139,7 @@ router.post('/export/sheets', async (req, res) => {
           // Colores alternos (Banding)
           {
             addBanding: {
-              bandingProperties: {
+              banding: {
                 range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: rows.length + 1, startColumnIndex: 0, endColumnIndex: 9 },
                 rowProperties: {
                   headerColor: { red: 79/255, green: 70/255, blue: 229/255 },
