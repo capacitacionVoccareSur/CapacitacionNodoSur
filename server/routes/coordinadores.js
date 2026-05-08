@@ -37,7 +37,7 @@ router.post('/export/sheets', async (req, res) => {
     const sheetTitle = `Exp-Coord-${timestamp}`
 
     // 1. Crear nueva hoja
-    await sheets.spreadsheets.batchUpdate({
+    const addSheetRes = await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID(),
       requestBody: {
         requests: [{
@@ -47,6 +47,7 @@ router.post('/export/sheets', async (req, res) => {
         }]
       }
     })
+    const newSheetId = addSheetRes.data.replies[0].addSheet.properties.sheetId
 
     // 2. Preparar datos
     const header = ['Nombre', ...COUNTRIES.map(c => c.charAt(0).toUpperCase() + c.slice(1)), 'Promedio %']
@@ -63,6 +64,81 @@ router.post('/export/sheets', async (req, res) => {
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [header, ...data]
+      }
+    })
+
+    // 4. Aplicar Estilos (Formato)
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID(),
+      requestBody: {
+        requests: [
+          // Ancho de columnas
+          {
+            updateDimensionProperties: {
+              range: { sheetId: newSheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+              properties: { pixelSize: 250 },
+              fields: 'pixelSize'
+            }
+          },
+          {
+            updateDimensionProperties: {
+              range: { sheetId: newSheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 9 },
+              properties: { pixelSize: 100 },
+              fields: 'pixelSize'
+            }
+          },
+          // Estilo de Encabezado (Indigo background, white text)
+          {
+            repeatCell: {
+              range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: { red: 79/255, green: 70/255, blue: 229/255 },
+                  textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
+                  horizontalAlignment: 'CENTER'
+                }
+              },
+              fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+            }
+          },
+          // Formato Condicional (Celdas de porcentaje)
+          {
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
+                booleanRule: {
+                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '100' }] },
+                  format: { backgroundColor: { red: 220/255, green: 252/255, blue: 231/255 } } // Verde
+                }
+              },
+              index: 0
+            }
+          },
+          {
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
+                booleanRule: {
+                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '50' }] },
+                  format: { backgroundColor: { red: 254/255, green: 249/255, blue: 195/255 } } // Amarillo
+                }
+              },
+              index: 1
+            }
+          },
+          {
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
+                booleanRule: {
+                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '0' }] },
+                  format: { backgroundColor: { red: 243/255, green: 244/255, blue: 246/255 } } // Gris
+                }
+              },
+              index: 2
+            }
+          }
+        ]
       }
     })
 
