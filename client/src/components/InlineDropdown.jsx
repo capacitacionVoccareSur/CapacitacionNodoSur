@@ -4,6 +4,7 @@ const BADGE_COLORS = {
   'Urgente':        'bg-red-600 text-white border-red-600',
   'Alta':           'bg-red-100 text-red-700 border-red-200',
   'Baja':           'bg-yellow-100 text-yellow-700 border-yellow-200',
+  'Solo documentación': 'bg-yellow-50 text-yellow-700 border-yellow-300',
   'Hecho':          'bg-green-100 text-green-700 border-green-200',
   'Pendiente':      'bg-orange-100 text-orange-700 border-orange-200',
   'En curso':       'bg-blue-100 text-blue-700 border-blue-200',
@@ -16,14 +17,23 @@ export default function InlineDropdown({ value, options, onSave, disabled = fals
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [current, setCurrent] = useState(value)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, isUp: false })
   const btnRef = useRef(null)
 
   function handleOpen() {
     if (disabled || saving) return
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.left })
+      const spaceBelow = window.innerHeight - rect.bottom
+      const dropdownHeight = options.length * 32 + 8 // Estimado: 32px por item + padding
+      
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        // No hay espacio abajo, pero sí arriba: abrir hacia arriba
+        setPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left, isUp: true })
+      } else {
+        // Abrir hacia abajo (default)
+        setPos({ top: rect.bottom + 4, left: rect.left, isUp: false })
+      }
     }
     setOpen(o => !o)
   }
@@ -63,7 +73,10 @@ export default function InlineDropdown({ value, options, onSave, disabled = fals
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-max"
-            style={{ top: pos.top, left: pos.left }}
+            style={pos.isUp 
+              ? { bottom: pos.bottom, left: pos.left } 
+              : { top: pos.top, left: pos.left }
+            }
           >
             {options.map(opt => (
               <button
