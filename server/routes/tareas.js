@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const fetch = require('node-fetch')
 const { getSheetValues, updateSheetCell, moveRow, appendRow } = require('../sheets')
 
 const TASKS_SHEET   = () => process.env.TASKS_SHEET_NAME   || 'Trabajo pendiente'
@@ -241,34 +242,47 @@ router.post('/automatizar', async (req, res) => {
     return res.status(500).json({ error: 'URL de Apps Script no configurada en el servidor (.env)' })
   }
 
+  console.log('--- Iniciando Automatización ---')
+  console.log('Target URL:', scriptUrl)
+
   try {
-    // Simplificamos la petición: Apps Script a veces prefiere peticiones más limpias
-    // para evitar redirecciones de login en cuentas de Workspace
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      redirect: 'follow'
+      follow: 20, // node-fetch usa 'follow' en lugar de redirect: 'follow' (que es default)
+      headers: {
+        'Accept': 'application/json'
+      }
     })
 
+    const status = response.status
     const contentType = response.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text()
-      // Buscamos si hay un mensaje de error común en el HTML
-      if (text.includes('Unauthorized') || text.includes('login.google.com')) {
-        throw new Error('Permisos insuficientes: El script requiere login. Verifica en "Gestionar implementaciones" que el acceso sea "Cualquiera" (no solo de tu dominio) y que se ejecute como "Yo".')
+    const text = await response.text()
+
+    console.log('Response Status:', status)
+    console.log('Content-Type:', contentType)
+    
+    // Si la respuesta es JSON, intentamos parsear
+    if (contentType && contentType.includes('application/json')) {
+      const result = JSON.parse(text)
+      if (result.status === 'success') {
+        return res.json({ success: true, message: result.message })
+      } else {
+        return res.status(500).json({ error: result.message || 'Error en el script' })
       }
-      console.error('Apps Script Response (Full):', text)
-      throw new Error('El script de Google no respondió con datos válidos. Verifica la consola del servidor para más detalles.')
     }
 
-    const result = await response.json()
+    // Si no es JSON, registramos el error detallado
+    console.error('Apps Script Non-JSON Response (first 1000 chars):', text.substring(0, 1000))
     
-    if (result.status === 'success') {
-      res.json({ success: true, message: result.message })
-    } else {
-      res.status(500).json({ error: result.message || 'Error en la ejecución del script' })
+    if (text.includes('login.google.com') || text.includes('Unauthorized')) {
+      throw new Error('Google está pidiendo autenticación manual. Verifica que el script esté como "Anyone" y "Execute as Me".')
     }
+
+    throw new Error(`El script respondió con HTTP ${status} (No JSON). Verifica que la URL de despliegue sea la correcta.`)
+
   } catch (err) {
-    res.status(500).json({ error: `Error de conexión con Apps Script: ${err.message}` })
+    console.error('Error en fetch a Apps Script:', err)
+    res.status(500).json({ error: `Error de automatización: ${err.message}` })
   }
 })
 
