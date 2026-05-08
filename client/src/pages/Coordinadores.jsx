@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as XLSX from 'xlsx'
 import CoordinadoresTable from '../components/CoordinadoresTable'
 import CoordinadorModal from '../components/CoordinadorModal'
 import ImportModal from '../components/ImportModal'
@@ -15,6 +16,7 @@ export default function Coordinadores() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   function showToast(msg) {
     setToast(msg)
@@ -110,6 +112,44 @@ export default function Coordinadores() {
     setCountryFilter(prev => prev === key ? null : key)
   }
 
+  const handleExportExcel = () => {
+    const data = filtered.map(c => ({
+      'Nombre': c.nombre,
+      'Argentina %': c.argentina || 0,
+      'Chile %': c.chile || 0,
+      'Ecuador %': c.ecuador || 0,
+      'Perú %': c.peru || 0,
+      'Bolivia %': c.bolivia || 0,
+      'Paraguay %': c.paraguay || 0,
+      'Uruguay %': c.uruguay || 0,
+      'Promedio %': avg(c)
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Coordinadores')
+    XLSX.writeFile(wb, `Coordinadores_${new Date().toISOString().split('T')[0]}.xlsx`)
+    showToast('✓ Excel generado')
+  }
+
+  const handleExportSheets = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch('/api/coordinadores/export/sheets', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        window.open(data.url, '_blank')
+        showToast(`✓ Exportado a Sheets: ${data.sheetTitle}`)
+      } else {
+        throw new Error(data.error)
+      }
+    } catch (err) {
+      showToast(`❌ Error: ${err.message}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       {/* Header */}
@@ -122,10 +162,23 @@ export default function Coordinadores() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowImport(true)}
+            onClick={handleExportExcel}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            <span>↓</span> Importar desde Sheets
+            <span>📊</span> Excel
+          </button>
+          <button
+            onClick={handleExportSheets}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <span>📈</span> {exporting ? 'Exportando...' : 'Sheets'}
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            <span>↓</span> Importar
           </button>
           <button
             onClick={() => setEditTarget({})}

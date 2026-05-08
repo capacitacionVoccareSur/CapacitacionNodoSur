@@ -1,8 +1,10 @@
 const express = require('express')
 const router = express.Router()
 const { getPool } = require('../db')
+const { getSheetsClient } = require('../sheets')
 
 const COUNTRIES = ['argentina', 'chile', 'ecuador', 'peru', 'bolivia', 'paraguay', 'uruguay']
+const SPREADSHEET_ID = () => process.env.GOOGLE_SPREADSHEET_ID
 
 function validateCountryValues(body) {
   for (const country of COUNTRIES) {
@@ -19,6 +21,52 @@ router.get('/', async (req, res) => {
   try {
     const result = await (await getPool()).query('SELECT * FROM coordinadores ORDER BY nombre')
     res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/coordinadores/export/sheets
+router.post('/export/sheets', async (req, res) => {
+  try {
+    const result = await (await getPool()).query('SELECT * FROM coordinadores ORDER BY nombre')
+    const rows = result.rows
+
+    const sheets = await getSheetsClient()
+    const timestamp = new Date().toLocaleString('es-AR').replace(/[/,:]/g, '-')
+    const sheetTitle = `Exp-Coord-${timestamp}`
+
+    // 1. Crear nueva hoja
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID(),
+      requestBody: {
+        requests: [{
+          addSheet: {
+            properties: { title: sheetTitle }
+          }
+        }]
+      }
+    })
+
+    // 2. Preparar datos
+    const header = ['Nombre', ...COUNTRIES.map(c => c.charAt(0).toUpperCase() + c.slice(1)), 'Promedio %']
+    const data = rows.map(r => {
+      const vals = COUNTRIES.map(c => r[c] || 0)
+      const avg = Math.round(vals.reduce((a, b) => a + b, 0) / COUNTRIES.length)
+      return [r.nombre, ...vals, avg]
+    })
+
+    // 3. Escribir datos
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID(),
+      range: `'${sheetTitle}'!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [header, ...data]
+      }
+    })
+
+    res.json({ success: true, sheetTitle, url: `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID()}` })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
