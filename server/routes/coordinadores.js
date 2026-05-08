@@ -36,13 +36,19 @@ router.post('/export/sheets', async (req, res) => {
     const timestamp = new Date().toLocaleString('es-AR').replace(/[/,:]/g, '-')
     const sheetTitle = `Exp-Coord-${timestamp}`
 
-    // 1. Crear nueva hoja
+    // 1. Crear nueva hoja con paneles inmovilizados
     const addSheetRes = await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID(),
       requestBody: {
         requests: [{
           addSheet: {
-            properties: { title: sheetTitle }
+            properties: { 
+              title: sheetTitle,
+              gridProperties: {
+                frozenRowCount: 1,
+                frozenColumnCount: 1
+              }
+            }
           }
         }]
       }
@@ -54,20 +60,21 @@ router.post('/export/sheets', async (req, res) => {
     const data = rows.map(r => {
       const vals = COUNTRIES.map(c => r[c] || 0)
       const avg = Math.round(vals.reduce((a, b) => a + b, 0) / COUNTRIES.length)
-      return [r.nombre, ...vals, avg]
+      // Enviar como número dividido por 100 para que el formato % de Sheets funcione correctamente (1 -> 100%)
+      return [r.nombre, ...vals.map(v => v/100), avg/100]
     })
 
     // 3. Escribir datos
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID(),
       range: `'${sheetTitle}'!A1`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW', // Usamos RAW para enviar números puros
       requestBody: {
         values: [header, ...data]
       }
     })
 
-    // 4. Aplicar Estilos (Formato)
+    // 4. Aplicar Estilos (Formato Profesional)
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID(),
       requestBody: {
@@ -95,19 +102,68 @@ router.post('/export/sheets', async (req, res) => {
                 userEnteredFormat: {
                   backgroundColor: { red: 79/255, green: 70/255, blue: 229/255 },
                   textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
-                  horizontalAlignment: 'CENTER'
+                  horizontalAlignment: 'CENTER',
+                  verticalAlignment: 'MIDDLE'
                 }
               },
-              fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+              fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
             }
           },
-          // Formato Condicional (Celdas de porcentaje)
+          // Formato Porcentual para los datos
+          {
+            repeatCell: {
+              range: { sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 },
+              cell: {
+                userEnteredFormat: {
+                  numberFormat: { type: 'PERCENT', pattern: '0%' },
+                  horizontalAlignment: 'CENTER',
+                  verticalAlignment: 'MIDDLE'
+                }
+              },
+              fields: 'userEnteredFormat(numberFormat,horizontalAlignment,verticalAlignment)'
+            }
+          },
+          // Bordes y alineación para los nombres
+          {
+            repeatCell: {
+              range: { sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  verticalAlignment: 'MIDDLE',
+                  textFormat: { bold: true }
+                }
+              },
+              fields: 'userEnteredFormat(verticalAlignment,textFormat)'
+            }
+          },
+          // Colores alternos (Banding)
+          {
+            addBanding: {
+              bandingProperties: {
+                range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: rows.length + 1, startColumnIndex: 0, endColumnIndex: 9 },
+                rowProperties: {
+                  headerColor: { red: 79/255, green: 70/255, blue: 229/255 },
+                  firstBandColor: { red: 1, green: 1, blue: 1 },
+                  secondBandColor: { red: 249/255, green: 250/255, blue: 251/255 } // Gris muy tenue
+                }
+              }
+            }
+          },
+          // Activar Filtros
+          {
+            setBasicFilter: {
+              filter: {
+                range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: rows.length + 1, startColumnIndex: 0, endColumnIndex: 9 }
+              }
+            }
+          },
+          // Formato Condicional (Celdas de porcentaje) - Ajustado para valores 0-1
           {
             addConditionalFormatRule: {
               rule: {
                 ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
                 booleanRule: {
-                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '100' }] },
+                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '1' }] },
                   format: { backgroundColor: { red: 220/255, green: 252/255, blue: 231/255 } } // Verde
                 }
               },
@@ -119,23 +175,11 @@ router.post('/export/sheets', async (req, res) => {
               rule: {
                 ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
                 booleanRule: {
-                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '50' }] },
+                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '0.5' }] },
                   format: { backgroundColor: { red: 254/255, green: 249/255, blue: 195/255 } } // Amarillo
                 }
               },
               index: 1
-            }
-          },
-          {
-            addConditionalFormatRule: {
-              rule: {
-                ranges: [{ sheetId: newSheetId, startRowIndex: 1, startColumnIndex: 1, endColumnIndex: 9 }],
-                booleanRule: {
-                  condition: { type: 'NUMBER_EQ', values: [{ userEnteredValue: '0' }] },
-                  format: { backgroundColor: { red: 243/255, green: 244/255, blue: 246/255 } } // Gris
-                }
-              },
-              index: 2
             }
           }
         ]
