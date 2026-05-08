@@ -248,6 +248,13 @@ router.post('/automatizar', async (req, res) => {
       redirect: 'follow'
     })
 
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text()
+      console.error('Apps Script HTML Response:', text.substring(0, 500))
+      throw new Error('El script de Google devolvió una página HTML en lugar de datos. Asegúrate de que el Script esté publicado como "Web App", que la URL sea la de "/exec" y que el acceso esté configurado para "Anyone".')
+    }
+
     const result = await response.json()
     
     if (result.status === 'success') {
