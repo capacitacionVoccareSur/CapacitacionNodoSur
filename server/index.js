@@ -15,6 +15,8 @@ const PORT = process.env.PORT || 3001
 app.use(cors())
 app.use(express.json())
 
+app.get('/api/health', (req, res) => res.json({ ok: true }))
+
 app.use('/api/coordinadores', coordinadoresRouter)
 app.use('/api/import', importRouter)
 app.use('/api/tareas', tareasRouter)
