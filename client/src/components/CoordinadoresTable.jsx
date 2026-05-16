@@ -8,21 +8,23 @@ const COUNTRIES = [
   { key: 'uruguay',   label: 'URY', flag: '🇺🇾', color: '#7F9BAD' },
 ]
 
-// Puntos de estado con semáforo — clickeables para ciclar 0→50→100→0
-function Dot({ value, onClick }) {
-  const next = { 0: 50, 50: 100, 100: 0 }
-  const titles = { 0: 'Sin capacitar · Click para pasar a 50%', 50: 'En proceso · Click para pasar a 100%', 100: 'Capacitado · Click para resetear a 0%' }
+// Celda heatmap — fondo de color completo, clickeable para ciclar 0→50→100→0
+const CELL_CONFIG = {
+  100: { bg: 'bg-green-100', text: 'text-green-700', label: '100%', title: 'Capacitado · Click para resetear a 0%' },
+  50:  { bg: 'bg-amber-100',  text: 'text-amber-700',  label: '50%',  title: 'En proceso · Click para pasar a 100%' },
+  0:   { bg: 'bg-gray-100',  text: 'text-gray-400',  label: '—',    title: 'Sin capacitar · Click para pasar a 50%' },
+}
 
-  const base = 'inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold cursor-pointer select-none transition-transform hover:scale-110 active:scale-95'
-
-  if (value === 100) return (
-    <span title={titles[100]} onClick={onClick} className={`${base} bg-green-500 text-white shadow-sm`}>100</span>
-  )
-  if (value === 50) return (
-    <span title={titles[50]} onClick={onClick} className={`${base} bg-yellow-400 text-white`}>50</span>
-  )
+function HeatCell({ value, onClick }) {
+  const cfg = CELL_CONFIG[value] ?? CELL_CONFIG[0]
   return (
-    <span title={titles[0]} onClick={onClick} className={`${base} bg-gray-200 text-gray-500`}>0</span>
+    <div
+      title={cfg.title}
+      onClick={onClick}
+      className={`${cfg.bg} ${cfg.text} rounded text-xs font-semibold text-center py-1.5 cursor-pointer hover:brightness-95 active:brightness-90 transition-all select-none`}
+    >
+      {cfg.label}
+    </div>
   )
 }
 
@@ -110,10 +112,10 @@ export default function CoordinadoresTable({ coordinadores, onEdit, onDelete, on
                   </div>
                 </td>
 
-                {/* Dots por país */}
+                {/* Celdas heatmap por país */}
                 {COUNTRIES.map(({ key }) => (
-                  <td key={key} className="px-1.5 py-1.5 text-center">
-                    <Dot value={c[key]} onClick={() => onDotClick(c, key)} />
+                  <td key={key} className="px-1 py-1.5">
+                    <HeatCell value={c[key] ?? 0} onClick={() => onDotClick(c, key)} />
                   </td>
                 ))}
 

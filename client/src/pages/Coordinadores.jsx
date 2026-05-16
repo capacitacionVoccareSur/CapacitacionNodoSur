@@ -328,19 +328,10 @@ export default function Coordinadores() {
       {/* Leyenda de estados */}
       <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-gray-500">
         <span className="font-medium">Estado:</span>
-        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold">100</span>
-          Capacitado
-        </span>
-        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-white text-[10px] font-bold">50</span>
-          En proceso
-        </span>
-        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold">0</span>
-          Sin capacitar
-        </span>
-        <span className="text-gray-400 ml-1">· Click en un estado para ciclarlo</span>
+        <span className="inline-flex items-center gap-1.5 bg-green-100 text-green-700 font-semibold rounded px-2.5 py-1">100% Capacitado</span>
+        <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 font-semibold rounded px-2.5 py-1">50% En proceso</span>
+        <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-400 font-semibold rounded px-2.5 py-1">— Sin capacitar</span>
+        <span className="text-gray-400 ml-1">· Click en una celda para ciclarlo</span>
       </div>
 
       {/* Table */}
