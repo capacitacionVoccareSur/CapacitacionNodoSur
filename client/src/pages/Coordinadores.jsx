@@ -325,8 +325,33 @@ export default function Coordinadores() {
         })}
       </div>
 
+      {/* Leyenda de estados */}
+      <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-gray-500">
+        <span className="font-medium">Estado:</span>
+        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold">100</span>
+          Capacitado
+        </span>
+        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-white text-[10px] font-bold">50</span>
+          En proceso
+        </span>
+        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold">0</span>
+          Sin capacitar
+        </span>
+        <span className="text-gray-400 ml-1">· Click en un estado para ciclarlo</span>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {!loading && (
+          <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 text-xs text-gray-500 flex items-center gap-2">
+            <span>Mostrando <strong className="text-gray-700">{filtered.length}</strong> coordinadores</span>
+            <span className="text-gray-300">·</span>
+            <span>Promedio general: <strong className="text-gray-700">{filtered.length > 0 ? Math.round(filtered.reduce((sum, c) => sum + avg(c), 0) / filtered.length) : 0}%</strong></span>
+          </div>
+        )}
         {loading ? (
           <div className="text-center py-16 text-gray-400">Cargando...</div>
         ) : (

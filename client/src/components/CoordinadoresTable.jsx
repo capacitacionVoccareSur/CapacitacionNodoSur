@@ -16,13 +16,13 @@ function Dot({ value, onClick }) {
   const base = 'inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold cursor-pointer select-none transition-transform hover:scale-110 active:scale-95'
 
   if (value === 100) return (
-    <span title={titles[100]} onClick={onClick} className={`${base} bg-green-500 text-white shadow-sm`}>✓</span>
+    <span title={titles[100]} onClick={onClick} className={`${base} bg-green-500 text-white shadow-sm`}>100</span>
   )
   if (value === 50) return (
-    <span title={titles[50]} onClick={onClick} className={`${base} bg-yellow-400 text-white`}>½</span>
+    <span title={titles[50]} onClick={onClick} className={`${base} bg-yellow-400 text-white`}>50</span>
   )
   return (
-    <span title={titles[0]} onClick={onClick} className={`${base} bg-red-100 text-red-400`}>–</span>
+    <span title={titles[0]} onClick={onClick} className={`${base} bg-gray-200 text-gray-500`}>0</span>
   )
 }
 
@@ -97,13 +97,13 @@ export default function CoordinadoresTable({ coordinadores, onEdit, onDelete, on
             return (
               <tr
                 key={c.id}
-                className={`hover:bg-indigo-50/40 transition-colors ${allDone ? 'bg-green-50/40' : nonStarted ? 'bg-red-50/20' : ''}`}
+                className={`hover:bg-indigo-50/40 transition-colors ${allDone ? 'bg-green-50' : ''}`}
               >
                 {/* Nombre con indicador lateral */}
                 <td className="px-4 py-1.5">
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-1 h-6 rounded-full shrink-0"
+                      className="w-1.5 h-6 rounded-full shrink-0"
                       style={{ backgroundColor: avg >= 90 ? '#16a34a' : avg >= 45 ? '#f59e0b' : '#ef4444' }}
                     />
                     <span className="font-semibold text-gray-900 whitespace-nowrap text-sm">{c.nombre}</span>
