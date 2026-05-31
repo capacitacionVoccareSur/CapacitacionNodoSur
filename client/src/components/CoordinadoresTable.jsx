@@ -108,7 +108,7 @@ export default function CoordinadoresTable({ coordinadores, onEdit, onDelete, on
                       className="w-1.5 h-6 rounded-full shrink-0"
                       style={{ backgroundColor: avg >= 90 ? '#16a34a' : avg >= 45 ? '#f59e0b' : '#ef4444' }}
                     />
-                    <span className="font-semibold text-gray-900 whitespace-nowrap text-sm">{c.nombre}</span>
+                    <span className="font-semibold text-gray-900 whitespace-nowrap text-sm">{c.nombre.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())}</span>
                   </div>
                 </td>
 

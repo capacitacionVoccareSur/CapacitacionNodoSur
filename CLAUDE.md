@@ -40,6 +40,10 @@ Copy `.env.example` to `.env` and fill in:
 | `FINALIZADOS_SHEET_NAME` | Tab name for completed tasks (default: `Finalizados`) |
 | `GOOGLE_APPS_SCRIPT_URL` | Deployed Apps Script web app URL for automation |
 
+## Requirements
+
+- Node >=20
+
 ## Architecture
 
 **Monorepo** with two separate packages:
@@ -58,6 +62,8 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001`. In production, Express
 - `server/routes/import.js` — Imports coordinadores from a public Google Sheets CSV URL (preview + confirm with replace/append modes).
 - `server/routes/documentacion.js` — CRUD for `doc_folders` and `doc_items` (stored in PostgreSQL).
 
+`GET /api/health` is a lightweight ping endpoint used by the frontend to detect Render cold starts and show a banner while the server wakes up.
+
 ### Frontend (`client/src/`)
 
 - `App.jsx` — Single-page app with a collapsible sidebar. Navigation is purely state-based (`useState` for `page`). Pages: `tareas` (default), `coordinadores`, `dashboard`, `documentacion`.
@@ -65,6 +71,12 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001`. In production, Express
 - `pages/Dashboard.jsx` — Visual dashboard for coordinadores data (includes `SouthAmericaMap.jsx`).
 - `pages/Tareas.jsx` — Task manager backed by Google Sheets.
 - `pages/Documentacion.jsx` — Link library with folders/items backed by PostgreSQL.
+
+Shared components:
+- `components/CoordinadoresTable.jsx` — Heatmap table with clickable cells that cycle `0→50→100→0`. Used by both Coordinadores and Dashboard pages.
+- `components/CoordinadorModal.jsx` — Create/edit modal for a coordinador record.
+- `components/ImportModal.jsx` — Two-step import flow (preview CSV → confirm with replace/append mode).
+- `components/InlineDropdown.jsx` — Generic inline dropdown used in table cells.
 
 ### Data sources split
 
@@ -85,3 +97,5 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001`. In production, Express
 The `coordinadores` table columns for each of the 7 countries (`argentina`, `chile`, `ecuador`, `peru`, `bolivia`, `paraguay`, `uruguay`) only accept the values `0`, `50`, or `100`. This constraint is enforced both at the DB level (`CHECK` constraint) and in the route validation.
 
 When exporting to Sheets, values are divided by 100 and written as decimals so Google Sheets' `PERCENT` format displays them correctly (`0.5` → `50%`).
+
+The Coordinadores page also supports local `.xlsx` download using `xlsx-js-style` (client-side). The map in `SouthAmericaMap.jsx` uses `react-simple-maps`.
