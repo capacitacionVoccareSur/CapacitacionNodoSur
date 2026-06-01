@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import InlineDropdown from '../components/InlineDropdown'
 
-const PAIS_OPTIONS    = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
+const PAIS_OPTIONS     = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
 const PRIORIDAD_FILTER = ['Todos', 'Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación']
 
 const FIELD_OPTIONS = {
@@ -29,6 +30,20 @@ function rowHighlightClasses(prioridad) {
   if (prioridad === 'Hecho')   return 'border-l-4 border-l-green-400'
   if (prioridad === 'Solo documentación') return 'border-l-4 border-l-yellow-300 bg-yellow-50/70'
   return 'border-l-4 border-l-transparent'
+}
+
+function groupTasks(tasks) {
+  const groups = {}
+  const ungrouped = []
+  for (const t of tasks) {
+    if (t.grupo) {
+      groups[t.grupo] = groups[t.grupo] || []
+      groups[t.grupo].push(t)
+    } else {
+      ungrouped.push(t)
+    }
+  }
+  return { groups, ungrouped }
 }
 
 function DelayBadge({ dias }) {
@@ -136,10 +151,135 @@ function CountryBadge({ pais }) {
   )
 }
 
-// ─── Tabla compartida ────────────────────────────────────────────────────────
+// ─── Modal nombre de grupo ────────────────────────────────────────────────────
 
-function TareasTable({ tasks, onFieldChange, onReopen, onEdit, onDelete, isFinalizados = false }) {
-  if (tasks.length === 0) {
+function NombreGrupoModal({ taskA, taskB, onConfirm, onCancel }) {
+  const [nombre, setNombre] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleConfirm() {
+    if (!nombre.trim()) return
+    setSaving(true)
+    await onConfirm(nombre.trim())
+  }
+
+  const truncate = (s, n) => s.length > n ? s.substring(0, n) + '…' : s
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <h3 className="text-base font-bold text-gray-900 mb-1">Nombre del grupo</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Agrupa "{truncate(taskA.tarea, 35)}" y "{truncate(taskB.tarea, 35)}"
+        </p>
+        <input
+          autoFocus
+          type="text"
+          value={nombre}
+          onChange={e => setNombre(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && nombre.trim() && !saving && handleConfirm()}
+          placeholder="Ej: Onboarding Ecuador"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4"
+        />
+        <div className="flex justify-end gap-3">
+          <button onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700">
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!nombre.trim() || saving}
+            className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Creando...' : 'Crear grupo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── DnD Row Components ───────────────────────────────────────────────────────
+
+function GroupHeaderRow({ nombre, tareas, collapsed, onToggle, colSpan }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `grupo:${nombre}` })
+  const completed = tareas.filter(isFullyCompleted).length
+  return (
+    <tr ref={setNodeRef} className={`border-t-2 border-indigo-200 transition-colors ${isOver ? 'bg-indigo-100' : 'bg-indigo-50'}`}>
+      <td colSpan={colSpan} className="px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggle}
+            className="text-indigo-500 hover:text-indigo-700 text-[10px] w-4 text-left leading-none"
+          >
+            {collapsed ? '▶' : '▼'}
+          </button>
+          <span className="font-semibold text-indigo-700 text-sm">{nombre}</span>
+          <span className="text-xs text-indigo-400 ml-1">{completed}/{tareas.length} completadas</span>
+          {isOver && (
+            <span className="ml-auto text-xs text-indigo-500 font-medium">Soltar aquí</span>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function DraggableTaskRow({ task, indent, children }) {
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: String(task.rowIndex),
+  })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: String(task.rowIndex),
+  })
+
+  const setRef = useCallback(node => {
+    setDragRef(node)
+    setDropRef(node)
+  }, [setDragRef, setDropRef])
+
+  return (
+    <tr
+      ref={setRef}
+      className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
+        ${isDragging ? 'opacity-40' : ''}
+        ${isOver && !isDragging ? 'bg-indigo-50/60' : ''}`}
+    >
+      <td className="px-1 py-1 text-center w-5">
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-sm leading-none touch-none select-none"
+          title="Arrastrá sobre otra tarea para agrupar"
+          tabIndex={-1}
+        >
+          ⠿
+        </button>
+      </td>
+      {children}
+    </tr>
+  )
+}
+
+// ─── Tabla compartida ─────────────────────────────────────────────────────────
+
+function TareasTable({
+  tasks,
+  groups,
+  ungrouped,
+  collapsedGroups,
+  onToggleCollapse,
+  onFieldChange,
+  onReopen,
+  onEdit,
+  onDelete,
+  isFinalizados = false,
+  dndEnabled = false,
+}) {
+  const hasData = dndEnabled
+    ? (ungrouped?.length > 0 || Object.keys(groups || {}).length > 0)
+    : (tasks?.length > 0)
+
+  if (!hasData) {
     return (
       <div className="text-center py-16 text-gray-400">
         <div className="text-4xl mb-3">{isFinalizados ? '🎉' : '📋'}</div>
@@ -148,11 +288,124 @@ function TareasTable({ tasks, onFieldChange, onReopen, onEdit, onDelete, isFinal
     )
   }
 
+  // drag(1) + #(1) + prioridad(1) + tarea(1) + pais(1) + fecha(1) + retraso(1) +
+  // lib(1) + doc(1) + finalizado(1) + links(1) + acciones(1) [+ reabrir(1)]
+  const colSpan = 12 + (isFinalizados ? 1 : 0)
+
+  function renderCells(task, idx, indent = false) {
+    return (
+      <>
+        <td className="px-2 py-1 text-center font-bold text-gray-300">
+          {idx + 1}
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          {isFinalizados
+            ? <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium whitespace-nowrap">{task.prioridad}</span>
+            : <InlineDropdown
+                value={task.prioridad}
+                options={FIELD_OPTIONS.prioridad}
+                onSave={v => onFieldChange(task, 'prioridad', v)}
+              />
+          }
+        </td>
+
+        <td className={`px-2 py-1 max-w-xs ${indent ? 'pl-6' : ''}`}>
+          <span className="text-gray-800 font-medium text-sm leading-snug">{task.tarea}</span>
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          <CountryBadge pais={task.pais} />
+        </td>
+
+        <td className="px-3 py-2 text-center whitespace-nowrap">
+          <span className="text-xs text-gray-500">{task.fecha_mail || '—'}</span>
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          <DelayBadge dias={task.dias_retraso} />
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          {isFinalizados
+            ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">{task.libreria_intranet}</span>
+            : <InlineDropdown
+                value={task.libreria_intranet}
+                options={FIELD_OPTIONS.libreria_intranet}
+                onSave={v => onFieldChange(task, 'libreria_intranet', v)}
+              />
+          }
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          {isFinalizados
+            ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium whitespace-nowrap">{task.documentacion_inicial}</span>
+            : <InlineDropdown
+                value={task.documentacion_inicial}
+                options={FIELD_OPTIONS.documentacion_inicial}
+                onSave={v => onFieldChange(task, 'documentacion_inicial', v)}
+              />
+          }
+        </td>
+
+        <td className="px-2 py-1 text-center">
+          {isFinalizados
+            ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">{task.finalizado}</span>
+            : <InlineDropdown
+                value={task.finalizado}
+                options={FIELD_OPTIONS.finalizado}
+                onSave={v => onFieldChange(task, 'finalizado', v)}
+              />
+          }
+        </td>
+
+        <td className="px-2 py-1">
+          <div className="flex items-center gap-2 justify-center">
+            <LinkCell url={task.mail}      title="Mail"          icon="✉️" />
+            <LinkCell url={task.mail2}     title="Carpeta Drive" icon="📁" />
+            <LinkCell url={task.documento} title="Documento"     icon="📄" />
+          </div>
+        </td>
+
+        <td className="px-2 py-1 text-center whitespace-nowrap">
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => onEdit(task)}
+              className="text-gray-300 hover:text-indigo-500 transition-colors text-base leading-none"
+              title="Editar tarea"
+            >
+              ✏️
+            </button>
+            <button
+              onClick={() => onDelete(task)}
+              className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none"
+              title="Eliminar tarea"
+            >
+              🗑️
+            </button>
+          </div>
+        </td>
+
+        {isFinalizados && (
+          <td className="px-2 py-1 text-right">
+            <button
+              onClick={() => onReopen(task)}
+              className="text-xs text-indigo-500 hover:text-indigo-700 font-medium whitespace-nowrap transition-colors"
+            >
+              Reabrir
+            </button>
+          </td>
+        )}
+      </>
+    )
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <th className="w-5"></th>
             <th className="px-2 py-1.5 text-center w-8 text-gray-400">#</th>
             <th className="text-left px-2 py-1.5 w-4"></th>
             <th className="text-left px-2 py-1.5">Tarea</th>
@@ -168,144 +421,60 @@ function TareasTable({ tasks, onFieldChange, onReopen, onEdit, onDelete, isFinal
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {tasks.map((task, idx) => (
-            <tr
-              key={task.rowIndex}
-              className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
-                ${isFinalizados ? 'opacity-70' : ''}`}
-            >
-              {/* Número */}
-              <td className="px-2 py-1 text-center font-bold text-gray-300">
-                {idx + 1}
-              </td>
-
-              {/* Prioridad */}
-              <td className="px-2 py-1 text-center">
-                {isFinalizados
-                  ? <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium whitespace-nowrap">{task.prioridad}</span>
-                  : <InlineDropdown
-                      value={task.prioridad}
-                      options={FIELD_OPTIONS.prioridad}
-                      onSave={v => onFieldChange(task, 'prioridad', v)}
+          {dndEnabled ? (
+            <>
+              {ungrouped.map((task, idx) => (
+                <DraggableTaskRow key={task.rowIndex} task={task}>
+                  {renderCells(task, idx)}
+                </DraggableTaskRow>
+              ))}
+              {Object.entries(groups).map(([nombre, tareas]) => {
+                const collapsed = collapsedGroups[nombre]
+                return (
+                  <Fragment key={nombre}>
+                    <GroupHeaderRow
+                      nombre={nombre}
+                      tareas={tareas}
+                      collapsed={collapsed}
+                      onToggle={() => onToggleCollapse(nombre)}
+                      colSpan={colSpan}
                     />
-                }
-              </td>
-
-              {/* Tarea */}
-              <td className="px-2 py-1 max-w-xs">
-                <span className="text-gray-800 font-medium text-sm leading-snug">{task.tarea}</span>
-              </td>
-
-              {/* País */}
-              <td className="px-2 py-1 text-center">
-                <CountryBadge pais={task.pais} />
-              </td>
-
-              {/* Fecha */}
-              <td className="px-3 py-2 text-center whitespace-nowrap">
-                <span className="text-xs text-gray-500">{task.fecha_mail || '—'}</span>
-              </td>
-
-              {/* Retraso */}
-              <td className="px-2 py-1 text-center">
-                <DelayBadge dias={task.dias_retraso} />
-              </td>
-
-              {/* Librería intranet */}
-              <td className="px-2 py-1 text-center">
-                {isFinalizados
-                  ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">{task.libreria_intranet}</span>
-                  : <InlineDropdown
-                      value={task.libreria_intranet}
-                      options={FIELD_OPTIONS.libreria_intranet}
-                      onSave={v => onFieldChange(task, 'libreria_intranet', v)}
-                    />
-                }
-              </td>
-
-              {/* Documentación */}
-              <td className="px-2 py-1 text-center">
-                {isFinalizados
-                  ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium whitespace-nowrap">{task.documentacion_inicial}</span>
-                  : <InlineDropdown
-                      value={task.documentacion_inicial}
-                      options={FIELD_OPTIONS.documentacion_inicial}
-                      onSave={v => onFieldChange(task, 'documentacion_inicial', v)}
-                    />
-                }
-              </td>
-
-              {/* Finalizado */}
-              <td className="px-2 py-1 text-center">
-                {isFinalizados
-                  ? <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">{task.finalizado}</span>
-                  : <InlineDropdown
-                      value={task.finalizado}
-                      options={FIELD_OPTIONS.finalizado}
-                      onSave={v => onFieldChange(task, 'finalizado', v)}
-                    />
-                }
-              </td>
-
-              {/* Links */}
-              <td className="px-2 py-1">
-                <div className="flex items-center gap-2 justify-center">
-                  <LinkCell url={task.mail}     title="Mail"           icon="✉️" />
-                  <LinkCell url={task.mail2}    title="Carpeta Drive"  icon="📁" />
-                  <LinkCell url={task.documento} title="Documento"     icon="📄" />
-                </div>
-              </td>
-
-              {/* Acciones */}
-              <td className="px-2 py-1 text-center whitespace-nowrap">
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => onEdit(task)}
-                    className="text-gray-300 hover:text-indigo-500 transition-colors text-base leading-none"
-                    title="Editar tarea"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => onDelete(task)}
-                    className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none"
-                    title="Eliminar tarea"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </td>
-
-              {/* Reabrir (solo en Finalizados) */}
-              {isFinalizados && (
-                <td className="px-2 py-1 text-right">
-                  <button
-                    onClick={() => onReopen(task)}
-                    className="text-xs text-indigo-500 hover:text-indigo-700 font-medium whitespace-nowrap transition-colors"
-                  >
-                    Reabrir
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
+                    {!collapsed && tareas.map((task, idx) => (
+                      <DraggableTaskRow key={task.rowIndex} task={task} indent>
+                        {renderCells(task, idx, true)}
+                      </DraggableTaskRow>
+                    ))}
+                  </Fragment>
+                )
+              })}
+            </>
+          ) : (
+            tasks.map((task, idx) => (
+              <tr
+                key={task.rowIndex}
+                className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
+                  ${isFinalizados ? 'opacity-70' : ''}`}
+              >
+                <td className="w-5"></td>
+                {renderCells(task, idx)}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>
   )
 }
 
-// ─── Modales de tarea ────────────────────────────────────────────────────────
+// ─── Modales de tarea ─────────────────────────────────────────────────────────
 
 const PAIS_CREATE = ['', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay', 'Colombia', 'Venezuela']
 
-// Convierte YYYY-MM-DD → DD/MM/YYYY
 function toSheetsDate(iso) {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
-// Convierte DD/MM/YYYY → YYYY-MM-DD
 function toInputDate(sheets) {
   if (!sheets) return ''
   const parts = sheets.split('/')
@@ -321,6 +490,7 @@ function TareaFormModal({ title, initial = {}, onClose, onSave }) {
   const [mail,      setMail]      = useState(initial.mail      || '')
   const [mail2,     setMail2]     = useState(initial.mail2     || '')
   const [documento, setDocumento] = useState(initial.documento || '')
+  const [grupo,     setGrupo]     = useState(initial.grupo     || '')
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
@@ -335,7 +505,8 @@ function TareaFormModal({ title, initial = {}, onClose, onSave }) {
         fecha_mail: toSheetsDate(fecha),
         mail: mail.trim(),
         mail2: mail2.trim(),
-        documento: documento.trim()
+        documento: documento.trim(),
+        grupo: grupo.trim(),
       })
     } catch (err) {
       setError(err.message)
@@ -379,6 +550,16 @@ function TareaFormModal({ title, initial = {}, onClose, onSave }) {
             <label className="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Grupo</label>
+            <input
+              type="text"
+              value={grupo}
+              onChange={e => setGrupo(e.target.value)}
+              placeholder="Nombre del grupo (opcional)"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
           </div>
 
           <div className="border-t border-gray-100 pt-3 mt-3 space-y-3">
@@ -426,10 +607,7 @@ function NuevaTareaModal({ onClose, onCreated }) {
     setSaving(true)
     setError('')
     try {
-      // Convertir fecha de YYYY-MM-DD a DD/MM/YYYY para Sheets
-      const fechaSheets = fecha
-        ? fecha.split('-').reverse().join('/')
-        : ''
+      const fechaSheets = fecha ? fecha.split('-').reverse().join('/') : ''
       const res = await fetch('/api/tareas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -533,6 +711,12 @@ export default function Tareas() {
   const [editTask, setEditTask]         = useState(null)
   const [deleteTask, setDeleteTask]     = useState(null)
 
+  // Group state
+  const [collapsedGroups, setCollapsedGroups] = useState({})
+  const [pendingGroup, setPendingGroup]       = useState(null)
+  const [undoGroup, setUndoGroup]             = useState(null)
+  const undoTimerRef                          = useRef(null)
+
   const fetchAll = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -555,6 +739,9 @@ export default function Tareas() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  // Cleanup undo timer on unmount
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }, [])
+
   async function handleRunAutomation() {
     if (automationLoading) return
     setAutomationLoading(true)
@@ -563,8 +750,6 @@ export default function Tareas() {
       const res = await fetch('/api/tareas/automatizar', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al ejecutar automatización')
-      
-      // Esperar un momento y refrescar para ver los cambios
       setTimeout(() => fetchAll(), 3000)
     } catch (err) {
       setError(err.message)
@@ -581,14 +766,8 @@ export default function Tareas() {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al guardar')
-
-    // Actualiza el estado local con la tarea actualizada
     setPendientes(prev => prev.map(t => t.rowIndex === task.rowIndex ? data.task : t))
-
-    // Si todos los campos están completos, pide confirmación para archivar
-    if (data.readyToArchive) {
-      setArchiveTask(data.task)
-    }
+    if (data.readyToArchive) setArchiveTask(data.task)
   }
 
   async function handleArchiveConfirm() {
@@ -596,11 +775,7 @@ export default function Tareas() {
     setActionLoading(true)
     try {
       const res = await fetch(`/api/tareas/${archiveTask.rowIndex}/archive`, { method: 'POST' })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error)
-      }
-      // Refresca ambas listas para que los rowIndex sean consistentes
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       await fetchAll()
     } catch (err) {
       setError(err.message)
@@ -615,10 +790,7 @@ export default function Tareas() {
     setActionLoading(true)
     try {
       const res = await fetch(`/api/tareas/finalizados/${reopenTask.rowIndex}/reopen`, { method: 'POST' })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error)
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       await fetchAll()
     } catch (err) {
       setError(err.message)
@@ -632,15 +804,11 @@ export default function Tareas() {
     if (!deleteTask || actionLoading) return
     setActionLoading(true)
     try {
-      const url = tab === 'pendientes' 
+      const url = tab === 'pendientes'
         ? `/api/tareas/${deleteTask.rowIndex}`
         : `/api/tareas/finalizados/${deleteTask.rowIndex}`
-      
       const res = await fetch(url, { method: 'DELETE' })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error)
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       await fetchAll()
     } catch (err) {
       setError(err.message)
@@ -650,11 +818,11 @@ export default function Tareas() {
     }
   }
 
-  async function handleEdit({ tarea, pais, prioridad, fecha_mail, mail, mail2, documento }) {
+  async function handleEdit({ tarea, pais, prioridad, fecha_mail, mail, mail2, documento, grupo }) {
     const res = await fetch(`/api/tareas/${editTask.rowIndex}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tarea, pais, prioridad, fecha_mail, mail, mail2, documento }),
+      body: JSON.stringify({ tarea, pais, prioridad, fecha_mail, mail, mail2, documento, grupo }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al guardar')
@@ -662,7 +830,103 @@ export default function Tareas() {
     setEditTask(null)
   }
 
-  // Filtros aplicados a pendientes
+  // ─── Group handlers ──────────────────────────────────────────────────────────
+
+  function toggleCollapse(nombre) {
+    setCollapsedGroups(prev => ({ ...prev, [nombre]: !prev[nombre] }))
+  }
+
+  function showUndoToast(tasks, grupoNombre) {
+    setUndoGroup({ tasks, grupoNombre })
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setUndoGroup(null), 6000)
+  }
+
+  async function assignToGroup(task, grupoNombre) {
+    try {
+      const res = await fetch(`/api/tareas/${task.rowIndex}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      setPendientes(prev => prev.map(t => t.rowIndex === task.rowIndex ? { ...t, grupo: grupoNombre } : t))
+    } catch (err) {
+      setError('Error al asignar grupo: ' + err.message)
+    }
+  }
+
+  async function handleCreateGroup(grupoNombre) {
+    const { taskA, taskB } = pendingGroup
+    setPendingGroup(null)
+    try {
+      await Promise.all([
+        fetch(`/api/tareas/${taskA.rowIndex}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
+        }),
+        fetch(`/api/tareas/${taskB.rowIndex}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
+        }),
+      ])
+      setPendientes(prev => prev.map(t =>
+        t.rowIndex === taskA.rowIndex || t.rowIndex === taskB.rowIndex
+          ? { ...t, grupo: grupoNombre }
+          : t
+      ))
+      showUndoToast([taskA, taskB], grupoNombre)
+    } catch (err) {
+      setError('Error al crear grupo: ' + err.message)
+    }
+  }
+
+  async function handleUndoGroup() {
+    if (!undoGroup) return
+    const { tasks } = undoGroup
+    setUndoGroup(null)
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    try {
+      await Promise.all(
+        tasks.map(t => fetch(`/api/tareas/${t.rowIndex}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: 'grupo', value: '' }),
+        }))
+      )
+      setPendientes(prev => prev.map(t =>
+        tasks.some(ut => ut.rowIndex === t.rowIndex) ? { ...t, grupo: '' } : t
+      ))
+    } catch (err) {
+      setError('Error al deshacer: ' + err.message)
+    }
+  }
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+
+    const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
+    if (!draggedTask) return
+
+    const overId = String(over.id)
+    if (overId.startsWith('grupo:')) {
+      const grupoNombre = overId.replace('grupo:', '')
+      if (draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
+    } else {
+      const targetTask = pendientes.find(t => String(t.rowIndex) === overId)
+      if (!targetTask) return
+      if (targetTask.grupo) {
+        if (draggedTask.grupo !== targetTask.grupo) assignToGroup(draggedTask, targetTask.grupo)
+      } else {
+        setPendingGroup({ taskA: draggedTask, taskB: targetTask })
+      }
+    }
+  }
+
+  // ─── Filtered + grouped data ─────────────────────────────────────────────────
+
   const filteredPendientes = pendientes
     .filter(t => paisFilter === 'Todos' || t.pais === paisFilter)
     .filter(t => prioFilter === 'Todos' || t.prioridad === prioFilter)
@@ -678,12 +942,13 @@ export default function Tareas() {
       if (sortBy === 'retraso') {
         return (b.dias_retraso ?? -Infinity) - (a.dias_retraso ?? -Infinity)
       }
-      // default: prioridad
       const pa = PRIORITY_ORDER[a.prioridad] ?? 3
       const pb = PRIORITY_ORDER[b.prioridad] ?? 3
       if (pa !== pb) return pa - pb
       return (b.dias_retraso ?? -Infinity) - (a.dias_retraso ?? -Infinity)
     })
+
+  const { groups, ungrouped } = groupTasks(filteredPendientes)
 
   const lastSyncText = lastSync
     ? lastSync.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
@@ -707,15 +972,9 @@ export default function Tareas() {
             className={`flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-indigo-700 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50 ${automationLoading ? 'animate-pulse' : ''}`}
           >
             {automationLoading ? (
-              <>
-                <span className="animate-spin inline-block text-xs">🧠</span>
-                IA Analizando...
-              </>
+              <><span className="animate-spin inline-block text-xs">🧠</span>IA Analizando...</>
             ) : (
-              <>
-                <span>🚀</span>
-                Automatizar
-              </>
+              <><span>🚀</span>Automatizar</>
             )}
           </button>
           <button
@@ -826,17 +1085,24 @@ export default function Tareas() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200">
           {tab === 'pendientes' ? (
-            <TareasTable
-              tasks={filteredPendientes}
-              onFieldChange={handleFieldChange}
-              onEdit={setEditTask}
-              onDelete={setDeleteTask}
-            />
+            <DndContext onDragEnd={handleDragEnd}>
+              <TareasTable
+                ungrouped={ungrouped}
+                groups={groups}
+                collapsedGroups={collapsedGroups}
+                onToggleCollapse={toggleCollapse}
+                onFieldChange={handleFieldChange}
+                onEdit={setEditTask}
+                onDelete={setDeleteTask}
+                dndEnabled
+              />
+            </DndContext>
           ) : (
             <TareasTable
               tasks={finalizados}
               isFinalizados
               onReopen={setReopenTask}
+              onEdit={setEditTask}
               onDelete={setDeleteTask}
             />
           )}
@@ -908,6 +1174,29 @@ export default function Tareas() {
           onClose={() => setEditTask(null)}
           onSave={handleEdit}
         />
+      )}
+
+      {/* Modal: nombre de grupo */}
+      {pendingGroup && (
+        <NombreGrupoModal
+          taskA={pendingGroup.taskA}
+          taskB={pendingGroup.taskB}
+          onConfirm={handleCreateGroup}
+          onCancel={() => setPendingGroup(null)}
+        />
+      )}
+
+      {/* Toast: deshacer grupo */}
+      {undoGroup && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-4 z-50 text-sm">
+          <span>Grupo <strong>"{undoGroup.grupoNombre}"</strong> creado</span>
+          <button
+            onClick={handleUndoGroup}
+            className="text-indigo-300 hover:text-indigo-200 font-semibold underline underline-offset-2"
+          >
+            Deshacer
+          </button>
+        </div>
       )}
     </div>
   )

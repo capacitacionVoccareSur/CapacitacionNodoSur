@@ -5,7 +5,7 @@ const { getSheetValues, updateSheetCell, moveRow, appendRow } = require('../shee
 
 const TASKS_SHEET   = () => process.env.TASKS_SHEET_NAME   || 'Trabajo pendiente'
 const FIN_SHEET     = () => process.env.FINALIZADOS_SHEET_NAME || 'Finalizados'
-const DATA_RANGE    = 'A2:K500'
+const DATA_RANGE    = 'A2:L500'
 
 // Mapeo de campo → letra de columna en Sheets
 const FIELD_COLUMN = {
@@ -13,6 +13,7 @@ const FIELD_COLUMN = {
   libreria_intranet:     'F',
   documentacion_inicial: 'G',
   finalizado:            'H',
+  grupo:                 'L',
 }
 
 const FIELD_OPTIONS = {
@@ -57,6 +58,7 @@ function rowToTask(row, rowIndex) {
     mail:                  row[8]  || '',
     mail2:                 row[9]  || '',
     documento:             row[10] || '',
+    grupo:                 row[11] || '',
   }
 }
 
@@ -73,6 +75,7 @@ function taskToRow(task) {
     task.mail,
     task.mail2,
     task.documento,
+    task.grupo || '',
   ]
 }
 
@@ -111,13 +114,10 @@ router.post('/', async (req, res) => {
 // PUT /api/tareas/:rowIndex — editar todos los campos de una tarea
 router.put('/:rowIndex', async (req, res) => {
   const rowIndex = Number(req.params.rowIndex)
-  const { tarea, pais = '', prioridad = 'Alta', fecha_mail = '', mail = '', mail2 = '', documento = '' } = req.body
+  const { tarea, pais = '', prioridad = 'Alta', fecha_mail = '', mail = '', mail2 = '', documento = '', grupo = '' } = req.body
   if (!tarea?.trim()) return res.status(400).json({ error: 'La tarea es requerida' })
 
   try {
-    // Actualizamos toda la fila (A a K, excepto la E que es calculada)
-    // En lugar de multiples calls, podemos usar update con range completo si queremos ser eficientes
-    // Pero para mantener consistencia con updateSheetCell y no romper la columna E:
     await Promise.all([
       updateSheetCell(TASKS_SHEET(), rowIndex, 'A', prioridad),
       updateSheetCell(TASKS_SHEET(), rowIndex, 'B', pais),
@@ -127,9 +127,10 @@ router.put('/:rowIndex', async (req, res) => {
       updateSheetCell(TASKS_SHEET(), rowIndex, 'I', mail),
       updateSheetCell(TASKS_SHEET(), rowIndex, 'J', mail2),
       updateSheetCell(TASKS_SHEET(), rowIndex, 'K', documento),
+      updateSheetCell(TASKS_SHEET(), rowIndex, 'L', grupo),
     ])
-    
-    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:K${rowIndex}`)
+
+    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:L${rowIndex}`)
     const task = rowToTask(rows[0] || [], rowIndex)
     res.json({ task })
   } catch (err) {
@@ -200,7 +201,8 @@ router.patch('/:rowIndex', async (req, res) => {
   if (!FIELD_COLUMN[field]) {
     return res.status(400).json({ error: `Campo no editable: ${field}` })
   }
-  if (!FIELD_OPTIONS[field].includes(value)) {
+  // grupo es texto libre; los demás campos tienen valores permitidos
+  if (field !== 'grupo' && !FIELD_OPTIONS[field].includes(value)) {
     return res.status(400).json({ error: `Valor inválido para ${field}: "${value}"` })
   }
 
@@ -208,7 +210,7 @@ router.patch('/:rowIndex', async (req, res) => {
     await updateSheetCell(TASKS_SHEET(), rowIndex, FIELD_COLUMN[field], value)
 
     // Re-lee la fila para obtener el estado actual
-    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:K${rowIndex}`)
+    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:L${rowIndex}`)
     const task = rowToTask(rows[0] || [], rowIndex)
 
     res.json({ task, readyToArchive: isFullyCompleted(task) })
@@ -222,7 +224,7 @@ router.post('/:rowIndex/archive', async (req, res) => {
   const rowIndex = Number(req.params.rowIndex)
 
   try {
-    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:K${rowIndex}`)
+    const rows = await getSheetValues(TASKS_SHEET(), `A${rowIndex}:L${rowIndex}`)
     if (!rows[0]) return res.status(404).json({ error: 'Fila no encontrada' })
 
     const task = rowToTask(rows[0], rowIndex)
@@ -293,7 +295,7 @@ router.post('/finalizados/:rowIndex/reopen', async (req, res) => {
   const rowIndex = Number(req.params.rowIndex)
 
   try {
-    const rows = await getSheetValues(FIN_SHEET(), `A${rowIndex}:K${rowIndex}`)
+    const rows = await getSheetValues(FIN_SHEET(), `A${rowIndex}:L${rowIndex}`)
     if (!rows[0]) return res.status(404).json({ error: 'Fila no encontrada' })
 
     const task = rowToTask(rows[0], rowIndex)
