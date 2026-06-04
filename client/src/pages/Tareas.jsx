@@ -1,7 +1,5 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import { DndContext, useDroppable, useSensor, useSensors, PointerSensor, closestCenter } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useState, useEffect, useCallback, Fragment } from 'react'
+import { DndContext, useDraggable, useDroppable, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
 import InlineDropdown from '../components/InlineDropdown'
 
 const PAIS_OPTIONS     = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
@@ -225,22 +223,22 @@ function GroupHeaderRow({ nombre, tareas, collapsed, onToggle, colSpan }) {
   )
 }
 
-function SortableTaskRow({ task, isGroupTarget, children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: String(task.rowIndex),
-  })
+function DraggableTaskRow({ task, children }) {
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: String(task.rowIndex) })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: String(task.rowIndex) })
+  const setRef = useCallback(node => { setDragRef(node); setDropRef(node) }, [setDragRef, setDropRef])
+
   return (
     <tr
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      ref={setRef}
       {...attributes}
       {...listeners}
       className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs cursor-grab active:cursor-grabbing
-        ${isDragging ? 'opacity-30 relative z-10' : ''}
-        ${isGroupTarget ? 'outline outline-2 outline-indigo-400 bg-indigo-50/80' : ''}`}
+        ${isDragging ? 'opacity-40' : ''}
+        ${isOver && !isDragging ? 'outline outline-2 outline-indigo-400 bg-indigo-50/60' : ''}`}
     >
       <td className="px-1 py-1 text-center w-5 select-none">
-        {isGroupTarget
+        {isOver && !isDragging
           ? <span className="text-indigo-500 font-bold text-sm">⊕</span>
           : <span className="text-gray-300">⠿</span>
         }
@@ -264,7 +262,6 @@ function TareasTable({
   onDelete,
   isFinalizados = false,
   dndEnabled = false,
-  groupTarget = null,
 }) {
   const hasData = dndEnabled
     ? (ungrouped?.length > 0 || Object.keys(groups || {}).length > 0)
@@ -414,13 +411,11 @@ function TareasTable({
         <tbody className="divide-y divide-gray-100">
           {dndEnabled ? (
             <>
-              <SortableContext items={ungrouped.map(t => String(t.rowIndex))} strategy={verticalListSortingStrategy}>
-                {ungrouped.map((task, idx) => (
-                  <SortableTaskRow key={task.rowIndex} task={task} isGroupTarget={String(task.rowIndex) === groupTarget}>
-                    {renderCells(task, idx)}
-                  </SortableTaskRow>
-                ))}
-              </SortableContext>
+              {ungrouped.map((task, idx) => (
+                <DraggableTaskRow key={task.rowIndex} task={task}>
+                  {renderCells(task, idx)}
+                </DraggableTaskRow>
+              ))}
               {Object.entries(groups).map(([nombre, tareas]) => {
                 const collapsed = collapsedGroups[nombre]
                 return (
@@ -715,9 +710,6 @@ export default function Tareas() {
   // Group state
   const [collapsedGroups, setCollapsedGroups] = useState({})
   const [pendingGroup, setPendingGroup]       = useState(null)
-  const [groupTarget, setGroupTarget]         = useState(null)
-  const groupTimerRef                         = useRef(null)
-  const groupTargetRef                        = useRef(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -740,7 +732,6 @@ export default function Tareas() {
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
-  useEffect(() => () => { if (groupTimerRef.current) clearTimeout(groupTimerRef.current) }, [])
 
   async function handleRunAutomation() {
     if (automationLoading) return
@@ -876,64 +867,26 @@ export default function Tareas() {
     }
   }
 
-  function handleDragOver({ active, over }) {
-    const overId = over ? String(over.id) : null
-    const activeId = String(active.id)
-
-    // Cancelar timer si no hay over o es encabezado de grupo o es el mismo elemento
-    if (!overId || overId.startsWith('grupo:') || overId === activeId) {
-      if (groupTimerRef.current) clearTimeout(groupTimerRef.current)
-      setGroupTarget(null)
-      groupTargetRef.current = null
-      return
-    }
-
-    // Si ya está apuntando a este target, no reiniciar el timer
-    if (groupTargetRef.current === overId) return
-
-    // Nuevo target: reiniciar timer
-    if (groupTimerRef.current) clearTimeout(groupTimerRef.current)
-    setGroupTarget(null)
-    groupTargetRef.current = null
-
-    groupTimerRef.current = setTimeout(() => {
-      setGroupTarget(overId)
-      groupTargetRef.current = overId
-    }, 600)
-  }
-
   function handleDragEnd({ active, over }) {
-    if (groupTimerRef.current) clearTimeout(groupTimerRef.current)
-    groupTimerRef.current = null
-    const currentGroupTarget = groupTargetRef.current
-    setGroupTarget(null)
-    groupTargetRef.current = null
-
     if (!over || active.id === over.id) return
 
     const overId = String(over.id)
+    const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
+    if (!draggedTask) return
 
     if (overId.startsWith('grupo:')) {
       const grupoNombre = overId.replace('grupo:', '')
-      const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
-      if (draggedTask && draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
+      if (draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
       return
     }
 
-    if (currentGroupTarget === overId) {
-      // Modo grupo: mostrar modal
-      const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
-      const targetTask  = pendientes.find(t => String(t.rowIndex) === overId)
-      if (draggedTask && targetTask) setPendingGroup({ taskA: draggedTask, taskB: targetTask })
-      return
-    }
+    const targetTask = pendientes.find(t => String(t.rowIndex) === overId)
+    if (!targetTask) return
 
-    // Reordenar
-    const oldIndex = pendientes.findIndex(t => String(t.rowIndex) === String(active.id))
-    const newIndex = pendientes.findIndex(t => String(t.rowIndex) === overId)
-    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-      setPendientes(prev => arrayMove(prev, oldIndex, newIndex))
-      setSortBy('custom')
+    if (targetTask.grupo) {
+      if (draggedTask.grupo !== targetTask.grupo) assignToGroup(draggedTask, targetTask.grupo)
+    } else {
+      setPendingGroup({ taskA: draggedTask, taskB: targetTask })
     }
   }
 
@@ -943,7 +896,6 @@ export default function Tareas() {
     .filter(t => paisFilter === 'Todos' || t.pais === paisFilter)
     .filter(t => prioFilter === 'Todos' || t.prioridad === prioFilter)
     .sort((a, b) => {
-      if (sortBy === 'custom') return 0
       if (sortBy === 'fecha') {
         const parse = s => {
           if (!s) return Infinity
@@ -1098,7 +1050,7 @@ export default function Tareas() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200">
           {tab === 'pendientes' ? (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <TareasTable
                 ungrouped={ungrouped}
                 groups={groups}
@@ -1107,7 +1059,6 @@ export default function Tareas() {
                 onFieldChange={handleFieldChange}
                 onEdit={setEditTask}
                 onDelete={setDeleteTask}
-                groupTarget={groupTarget}
                 dndEnabled
               />
             </DndContext>
