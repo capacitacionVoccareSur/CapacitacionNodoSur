@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const BADGE_COLORS = {
   'Urgente':        'bg-red-600 text-white border-red-600',
@@ -20,6 +20,10 @@ export default function InlineDropdown({ value, options, onSave, disabled = fals
   const [current, setCurrent] = useState(value)
   const [pos, setPos] = useState({ top: 0, left: 0, isUp: false })
   const btnRef = useRef(null)
+
+  useEffect(() => {
+    if (!saving) setCurrent(value)
+  }, [value])
 
   function handleOpen() {
     if (disabled || saving) return

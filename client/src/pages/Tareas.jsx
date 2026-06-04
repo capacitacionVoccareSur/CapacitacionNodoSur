@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core'
+import { DndContext, useDraggable, useDroppable, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
 import InlineDropdown from '../components/InlineDropdown'
 
 const PAIS_OPTIONS     = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
@@ -241,21 +241,14 @@ function DraggableTaskRow({ task, indent, children }) {
   return (
     <tr
       ref={setRef}
-      className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs
+      {...attributes}
+      {...listeners}
+      className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs cursor-grab active:cursor-grabbing
         ${isDragging ? 'opacity-40' : ''}
         ${isOver && !isDragging ? 'bg-indigo-50/60' : ''}`}
+      title="Arrastrá sobre otra tarea para agrupar"
     >
-      <td className="px-1 py-1 text-center w-5">
-        <button
-          {...attributes}
-          {...listeners}
-          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-sm leading-none touch-none select-none"
-          title="Arrastrá sobre otra tarea para agrupar"
-          tabIndex={-1}
-        >
-          ⠿
-        </button>
-      </td>
+      <td className="px-1 py-1 text-center w-5 text-gray-300 select-none">⠿</td>
       {children}
     </tr>
   )
@@ -712,6 +705,10 @@ export default function Tareas() {
   const [editTask, setEditTask]         = useState(null)
   const [deleteTask, setDeleteTask]     = useState(null)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
   // Group state
   const [collapsedGroups, setCollapsedGroups] = useState({})
   const [pendingGroup, setPendingGroup]       = useState(null)
@@ -1086,7 +1083,7 @@ export default function Tareas() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200">
           {tab === 'pendientes' ? (
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <TareasTable
                 ungrouped={ungrouped}
                 groups={groups}
