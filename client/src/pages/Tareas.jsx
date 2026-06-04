@@ -3,16 +3,16 @@ import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import InlineDropdown from '../components/InlineDropdown'
 
 const PAIS_OPTIONS     = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
-const PRIORIDAD_FILTER = ['Todos', 'Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación']
+const PRIORIDAD_FILTER = ['Todos', 'Urgente', 'Alta', 'Firmando', 'Baja', 'Hecho', 'Solo documentación']
 
 const FIELD_OPTIONS = {
-  prioridad:             ['Urgente', 'Alta', 'Baja', 'Hecho', 'Solo documentación'],
+  prioridad:             ['Urgente', 'Alta', 'Firmando', 'Baja', 'Hecho', 'Solo documentación'],
   libreria_intranet:     ['Pendiente', 'Hecho'],
   documentacion_inicial: ['Pendiente', 'En curso', '✅ Finalizado'],
   finalizado:            ['SÍ', 'NO'],
 }
 
-const PRIORITY_ORDER = { 'Urgente': 0, 'Alta': 1, 'Baja': 2, 'Solo documentación': 2.5, 'Hecho': 3, '': 4 }
+const PRIORITY_ORDER = { 'Urgente': 0, 'Alta': 1, 'Firmando': 1.5, 'Baja': 2, 'Solo documentación': 2.5, 'Hecho': 3, '': 4 }
 
 function isFullyCompleted(task) {
   return (
@@ -28,6 +28,7 @@ function rowHighlightClasses(prioridad) {
   if (prioridad === 'Alta')    return 'border-l-4 border-l-red-300'
   if (prioridad === 'Baja')    return 'border-l-4 border-l-yellow-400'
   if (prioridad === 'Hecho')   return 'border-l-4 border-l-green-400'
+  if (prioridad === 'Firmando') return 'border-l-4 border-l-purple-500'
   if (prioridad === 'Solo documentación') return 'border-l-4 border-l-yellow-300 bg-yellow-50/70'
   return 'border-l-4 border-l-transparent'
 }
@@ -535,7 +536,7 @@ function TareaFormModal({ title, initial = {}, onClose, onSave }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Prioridad</label>
               <select value={prioridad} onChange={e => setPrioridad(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                {['Urgente','Alta','Baja','Hecho','Solo documentación'].map(p => <option key={p}>{p}</option>)}
+                {['Urgente','Alta','Firmando','Baja','Hecho','Solo documentación'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
@@ -648,7 +649,7 @@ function NuevaTareaModal({ onClose, onCreated }) {
                 onChange={e => setPrioridad(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               >
-                {['Urgente', 'Alta', 'Baja', 'Solo documentación'].map(p => <option key={p}>{p}</option>)}
+                {['Urgente', 'Alta', 'Firmando', 'Baja', 'Solo documentación'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
