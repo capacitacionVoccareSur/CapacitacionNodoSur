@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import { DndContext, useDraggable, useDroppable, useSensor, useSensors, PointerSensor } from '@dnd-kit/core'
+import { useState, useEffect, useCallback, Fragment } from 'react'
+import { DndContext, useDroppable, useSensor, useSensors, PointerSensor, closestCenter } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import InlineDropdown from '../components/InlineDropdown'
 
 const PAIS_OPTIONS     = ['Todos', 'General', 'Argentina', 'Bolivia', 'Chile', 'Ecuador', 'Paraguay', 'Peru', 'Uruguay']
@@ -152,53 +154,6 @@ function CountryBadge({ pais }) {
   )
 }
 
-// ─── Modal nombre de grupo ────────────────────────────────────────────────────
-
-function NombreGrupoModal({ taskA, taskB, onConfirm, onCancel }) {
-  const [nombre, setNombre] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function handleConfirm() {
-    if (!nombre.trim()) return
-    setSaving(true)
-    await onConfirm(nombre.trim())
-  }
-
-  const truncate = (s, n) => s.length > n ? s.substring(0, n) + '…' : s
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-        <h3 className="text-base font-bold text-gray-900 mb-1">Nombre del grupo</h3>
-        <p className="text-xs text-gray-500 mb-4">
-          Agrupa "{truncate(taskA.tarea, 35)}" y "{truncate(taskB.tarea, 35)}"
-        </p>
-        <input
-          autoFocus
-          type="text"
-          value={nombre}
-          onChange={e => setNombre(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && nombre.trim() && !saving && handleConfirm()}
-          placeholder="Ej: Onboarding Ecuador"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4"
-        />
-        <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700">
-            Cancelar
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!nombre.trim() || saving}
-            className="px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {saving ? 'Creando...' : 'Crear grupo'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── DnD Row Components ───────────────────────────────────────────────────────
 
 function GroupHeaderRow({ nombre, tareas, collapsed, onToggle, colSpan }) {
@@ -226,28 +181,18 @@ function GroupHeaderRow({ nombre, tareas, collapsed, onToggle, colSpan }) {
   )
 }
 
-function DraggableTaskRow({ task, indent, children }) {
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+function SortableTaskRow({ task, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(task.rowIndex),
   })
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
-    id: String(task.rowIndex),
-  })
-
-  const setRef = useCallback(node => {
-    setDragRef(node)
-    setDropRef(node)
-  }, [setDragRef, setDropRef])
-
   return (
     <tr
-      ref={setRef}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
       className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs cursor-grab active:cursor-grabbing
-        ${isDragging ? 'opacity-40' : ''}
-        ${isOver && !isDragging ? 'bg-indigo-50/60' : ''}`}
-      title="Arrastrá sobre otra tarea para agrupar"
+        ${isDragging ? 'opacity-30 relative z-10' : ''}`}
     >
       <td className="px-1 py-1 text-center w-5 text-gray-300 select-none">⠿</td>
       {children}
@@ -418,11 +363,13 @@ function TareasTable({
         <tbody className="divide-y divide-gray-100">
           {dndEnabled ? (
             <>
-              {ungrouped.map((task, idx) => (
-                <DraggableTaskRow key={task.rowIndex} task={task}>
-                  {renderCells(task, idx)}
-                </DraggableTaskRow>
-              ))}
+              <SortableContext items={ungrouped.map(t => String(t.rowIndex))} strategy={verticalListSortingStrategy}>
+                {ungrouped.map((task, idx) => (
+                  <SortableTaskRow key={task.rowIndex} task={task}>
+                    {renderCells(task, idx)}
+                  </SortableTaskRow>
+                ))}
+              </SortableContext>
               {Object.entries(groups).map(([nombre, tareas]) => {
                 const collapsed = collapsedGroups[nombre]
                 return (
@@ -435,9 +382,13 @@ function TareasTable({
                       colSpan={colSpan}
                     />
                     {!collapsed && tareas.map((task, idx) => (
-                      <DraggableTaskRow key={task.rowIndex} task={task} indent>
+                      <tr
+                        key={task.rowIndex}
+                        className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs`}
+                      >
+                        <td className="px-1 py-1 text-center w-5 text-gray-200 select-none">⠿</td>
                         {renderCells(task, idx, true)}
-                      </DraggableTaskRow>
+                      </tr>
                     ))}
                   </Fragment>
                 )
@@ -712,9 +663,6 @@ export default function Tareas() {
 
   // Group state
   const [collapsedGroups, setCollapsedGroups] = useState({})
-  const [pendingGroup, setPendingGroup]       = useState(null)
-  const [undoGroup, setUndoGroup]             = useState(null)
-  const undoTimerRef                          = useRef(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -737,9 +685,6 @@ export default function Tareas() {
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
-
-  // Cleanup undo timer on unmount
-  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }, [])
 
   async function handleRunAutomation() {
     if (automationLoading) return
@@ -829,16 +774,10 @@ export default function Tareas() {
     setEditTask(null)
   }
 
-  // ─── Group handlers ──────────────────────────────────────────────────────────
+  // ─── Group + sort handlers ────────────────────────────────────────────────────
 
   function toggleCollapse(nombre) {
     setCollapsedGroups(prev => ({ ...prev, [nombre]: !prev[nombre] }))
-  }
-
-  function showUndoToast(tasks, grupoNombre) {
-    setUndoGroup({ tasks, grupoNombre })
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    undoTimerRef.current = setTimeout(() => setUndoGroup(null), 6000)
   }
 
   async function assignToGroup(task, grupoNombre) {
@@ -855,72 +794,23 @@ export default function Tareas() {
     }
   }
 
-  async function handleCreateGroup(grupoNombre) {
-    const { taskA, taskB } = pendingGroup
-    setPendingGroup(null)
-    try {
-      await Promise.all([
-        fetch(`/api/tareas/${taskA.rowIndex}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
-        }),
-        fetch(`/api/tareas/${taskB.rowIndex}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
-        }),
-      ])
-      setPendientes(prev => prev.map(t =>
-        t.rowIndex === taskA.rowIndex || t.rowIndex === taskB.rowIndex
-          ? { ...t, grupo: grupoNombre }
-          : t
-      ))
-      showUndoToast([taskA, taskB], grupoNombre)
-    } catch (err) {
-      setError('Error al crear grupo: ' + err.message)
-    }
-  }
-
-  async function handleUndoGroup() {
-    if (!undoGroup) return
-    const { tasks } = undoGroup
-    setUndoGroup(null)
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    try {
-      await Promise.all(
-        tasks.map(t => fetch(`/api/tareas/${t.rowIndex}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field: 'grupo', value: '' }),
-        }))
-      )
-      setPendientes(prev => prev.map(t =>
-        tasks.some(ut => ut.rowIndex === t.rowIndex) ? { ...t, grupo: '' } : t
-      ))
-    } catch (err) {
-      setError('Error al deshacer: ' + err.message)
-    }
-  }
-
   function handleDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
-
-    const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
-    if (!draggedTask) return
 
     const overId = String(over.id)
     if (overId.startsWith('grupo:')) {
       const grupoNombre = overId.replace('grupo:', '')
-      if (draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
-    } else {
-      const targetTask = pendientes.find(t => String(t.rowIndex) === overId)
-      if (!targetTask) return
-      if (targetTask.grupo) {
-        if (draggedTask.grupo !== targetTask.grupo) assignToGroup(draggedTask, targetTask.grupo)
-      } else {
-        setPendingGroup({ taskA: draggedTask, taskB: targetTask })
-      }
+      const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
+      if (draggedTask && draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
+      return
+    }
+
+    // Reorder
+    const oldIndex = pendientes.findIndex(t => String(t.rowIndex) === String(active.id))
+    const newIndex = pendientes.findIndex(t => String(t.rowIndex) === overId)
+    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+      setPendientes(prev => arrayMove(prev, oldIndex, newIndex))
+      setSortBy('custom')
     }
   }
 
@@ -930,6 +820,7 @@ export default function Tareas() {
     .filter(t => paisFilter === 'Todos' || t.pais === paisFilter)
     .filter(t => prioFilter === 'Todos' || t.prioridad === prioFilter)
     .sort((a, b) => {
+      if (sortBy === 'custom') return 0
       if (sortBy === 'fecha') {
         const parse = s => {
           if (!s) return Infinity
@@ -1084,7 +975,7 @@ export default function Tareas() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200">
           {tab === 'pendientes' ? (
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <TareasTable
                 ungrouped={ungrouped}
                 groups={groups}
@@ -1175,28 +1066,6 @@ export default function Tareas() {
         />
       )}
 
-      {/* Modal: nombre de grupo */}
-      {pendingGroup && (
-        <NombreGrupoModal
-          taskA={pendingGroup.taskA}
-          taskB={pendingGroup.taskB}
-          onConfirm={handleCreateGroup}
-          onCancel={() => setPendingGroup(null)}
-        />
-      )}
-
-      {/* Toast: deshacer grupo */}
-      {undoGroup && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-4 z-50 text-sm">
-          <span>Grupo <strong>"{undoGroup.grupoNombre}"</strong> creado</span>
-          <button
-            onClick={handleUndoGroup}
-            className="text-indigo-300 hover:text-indigo-200 font-semibold underline underline-offset-2"
-          >
-            Deshacer
-          </button>
-        </div>
-      )}
     </div>
   )
 }
