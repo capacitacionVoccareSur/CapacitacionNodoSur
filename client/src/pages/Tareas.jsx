@@ -205,17 +205,18 @@ function GroupHeaderRow({ nombre, tareas, collapsed, onToggle, colSpan }) {
   const { setNodeRef, isOver } = useDroppable({ id: `grupo:${nombre}` })
   const completed = tareas.filter(isFullyCompleted).length
   return (
-    <tr ref={setNodeRef} className={`border-t-2 border-indigo-200 transition-colors ${isOver ? 'bg-indigo-100' : 'bg-indigo-50'}`}>
-      <td colSpan={colSpan} className="px-3 py-1.5">
-        <div className="flex items-center gap-2">
+    <tr ref={setNodeRef} className={`border-y-2 border-indigo-200 transition-colors ${isOver ? 'bg-indigo-100' : 'bg-indigo-50'}`}>
+      <td colSpan={colSpan} className="px-3 py-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={onToggle}
-            className="text-indigo-500 hover:text-indigo-700 text-[10px] w-4 text-left leading-none"
+            className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700 transition-colors select-none"
           >
-            {collapsed ? '▶' : '▼'}
+            Grupo
+            <span className="text-[10px] opacity-80">{collapsed ? '▶' : '▼'}</span>
           </button>
-          <span className="font-semibold text-indigo-700 text-sm">{nombre}</span>
-          <span className="text-xs text-indigo-400 ml-1">{completed}/{tareas.length} completadas</span>
+          <span className="font-bold text-indigo-800 text-sm">{nombre}</span>
+          <span className="text-xs text-indigo-400">{completed}/{tareas.length} completadas</span>
           {isOver && (
             <span className="ml-auto text-xs text-indigo-500 font-medium">Soltar aquí</span>
           )}
