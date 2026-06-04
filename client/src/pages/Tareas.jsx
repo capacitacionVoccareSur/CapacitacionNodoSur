@@ -248,6 +248,24 @@ function DraggableTaskRow({ task, children }) {
   )
 }
 
+function UngroupedDropZone({ colSpan }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'ungrouped' })
+  return (
+    <tr ref={setNodeRef}>
+      <td
+        colSpan={colSpan}
+        className={`px-4 py-2 border-2 border-dashed text-xs transition-colors ${
+          isOver
+            ? 'border-gray-400 bg-gray-100 text-gray-700 font-medium'
+            : 'border-gray-200 text-gray-400'
+        }`}
+      >
+        ↑ Soltar aquí para quitar del grupo
+      </td>
+    </tr>
+  )
+}
+
 // ─── Tabla compartida ─────────────────────────────────────────────────────────
 
 function TareasTable({
@@ -416,6 +434,9 @@ function TareasTable({
                   {renderCells(task, idx)}
                 </DraggableTaskRow>
               ))}
+              {Object.keys(groups).length > 0 && (
+                <UngroupedDropZone colSpan={colSpan} />
+              )}
               {Object.entries(groups).map(([nombre, tareas]) => {
                 const collapsed = collapsedGroups[nombre]
                 return (
@@ -428,13 +449,9 @@ function TareasTable({
                       colSpan={colSpan}
                     />
                     {!collapsed && tareas.map((task, idx) => (
-                      <tr
-                        key={task.rowIndex}
-                        className={`${rowHighlightClasses(task.prioridad)} hover:bg-gray-50/60 transition-colors text-xs`}
-                      >
-                        <td className="px-1 py-1 text-center w-5 text-gray-200 select-none">⠿</td>
+                      <DraggableTaskRow key={task.rowIndex} task={task}>
                         {renderCells(task, idx, true)}
-                      </tr>
+                      </DraggableTaskRow>
                     ))}
                   </Fragment>
                 )
@@ -874,6 +891,13 @@ export default function Tareas() {
     const draggedTask = pendientes.find(t => String(t.rowIndex) === String(active.id))
     if (!draggedTask) return
 
+    // Zona "sin grupo": quitar del grupo
+    if (overId === 'ungrouped') {
+      if (draggedTask.grupo) assignToGroup(draggedTask, '')
+      return
+    }
+
+    // Encabezado de grupo: agregar/mover al grupo
     if (overId.startsWith('grupo:')) {
       const grupoNombre = overId.replace('grupo:', '')
       if (draggedTask.grupo !== grupoNombre) assignToGroup(draggedTask, grupoNombre)
@@ -883,9 +907,14 @@ export default function Tareas() {
     const targetTask = pendientes.find(t => String(t.rowIndex) === overId)
     if (!targetTask) return
 
-    if (targetTask.grupo) {
-      if (draggedTask.grupo !== targetTask.grupo) assignToGroup(draggedTask, targetTask.grupo)
-    } else {
+    if (draggedTask.grupo && !targetTask.grupo) {
+      // Tarea agrupada suelta sobre tarea libre → quitar del grupo
+      assignToGroup(draggedTask, '')
+    } else if (targetTask.grupo && draggedTask.grupo !== targetTask.grupo) {
+      // Mover a otro grupo
+      assignToGroup(draggedTask, targetTask.grupo)
+    } else if (!draggedTask.grupo && !targetTask.grupo) {
+      // Ambas sin grupo → crear grupo nuevo
       setPendingGroup({ taskA: draggedTask, taskB: targetTask })
     }
   }
