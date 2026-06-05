@@ -862,7 +862,7 @@ export default function Tareas() {
     const { taskA, taskB } = pendingGroup
     setPendingGroup(null)
     try {
-      await Promise.all([
+      const [resA, resB] = await Promise.all([
         fetch(`/api/tareas/${taskA.rowIndex}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -874,11 +874,12 @@ export default function Tareas() {
           body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
         }),
       ])
-      setPendientes(prev => prev.map(t =>
-        t.rowIndex === taskA.rowIndex || t.rowIndex === taskB.rowIndex
-          ? { ...t, grupo: grupoNombre }
-          : t
-      ))
+      if (!resA.ok || !resB.ok) {
+        const errRes = !resA.ok ? resA : resB
+        const d = await errRes.json()
+        throw new Error(d.error || 'Error al crear grupo')
+      }
+      await fetchAll()
     } catch (err) {
       setError('Error al crear grupo: ' + err.message)
     }
