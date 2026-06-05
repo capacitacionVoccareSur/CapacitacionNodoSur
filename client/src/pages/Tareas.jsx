@@ -774,8 +774,13 @@ export default function Tareas() {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al guardar')
-    setPendientes(prev => prev.map(t => t.rowIndex === task.rowIndex ? data.task : t))
-    if (data.readyToArchive) setArchiveTask(data.task)
+    // Preservar grupo del estado local si el servidor no lo devuelve (Sheets trunca celdas vacías al final de fila)
+    setPendientes(prev => prev.map(t =>
+      t.rowIndex === task.rowIndex
+        ? { ...data.task, grupo: data.task.grupo || t.grupo }
+        : t
+    ))
+    if (data.readyToArchive) setArchiveTask({ ...data.task, grupo: data.task.grupo || task.grupo })
   }
 
   async function handleArchiveConfirm() {
@@ -879,7 +884,11 @@ export default function Tareas() {
         const d = await errRes.json()
         throw new Error(d.error || 'Error al crear grupo')
       }
-      await fetchAll()
+      setPendientes(prev => prev.map(t =>
+        t.rowIndex === taskA.rowIndex || t.rowIndex === taskB.rowIndex
+          ? { ...t, grupo: grupoNombre }
+          : t
+      ))
     } catch (err) {
       setError('Error al crear grupo: ' + err.message)
     }
