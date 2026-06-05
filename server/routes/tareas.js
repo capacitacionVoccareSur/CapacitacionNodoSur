@@ -169,13 +169,6 @@ router.get('/', async (req, res) => {
     const tasks = rows
       .map((row, i) => rowToTask(row, i + 2))
       .filter(t => t.tarea)
-    const conGrupo = tasks.filter(t => t.grupo)
-    if (conGrupo.length > 0) {
-      console.log('[DEBUG grupos]', conGrupo.map(t => `fila${t.rowIndex}="${t.grupo}"`).join(', '))
-    } else {
-      const sample = rows.slice(0, 3).map((r, i) => `fila${i+2}: len=${r.length} L=${r[11]||'(vacío)'}`)
-      console.log('[DEBUG grupos] ninguno. Muestra de filas:', sample)
-    }
     res.json(tasks)
   } catch (err) {
     res.status(500).json({ error: err.message })

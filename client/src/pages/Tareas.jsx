@@ -700,18 +700,6 @@ function NuevaTareaModal({ onClose, onCreated }) {
   )
 }
 
-// ─── Grupos localStorage ──────────────────────────────────────────────────────
-
-function loadGruposMap() {
-  try { return JSON.parse(localStorage.getItem('tareas_grupos') || '{}') } catch { return {} }
-}
-function saveGrupoLocal(rowIndex, grupo) {
-  const map = loadGruposMap()
-  if (grupo) map[String(rowIndex)] = grupo
-  else delete map[String(rowIndex)]
-  localStorage.setItem('tareas_grupos', JSON.stringify(map))
-}
-
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Tareas() {
@@ -750,16 +738,7 @@ export default function Tareas() {
       ])
       if (!pRes.ok || !fRes.ok) throw new Error('Error al conectar con Google Sheets')
       const [p, f] = await Promise.all([pRes.json(), fRes.json()])
-      // Aplicar grupos guardados en localStorage (Sheets puede no devolver columna L correctamente)
-      const gruposMap = loadGruposMap()
-      const activeKeys = new Set(p.map(t => String(t.rowIndex)))
-      Object.keys(gruposMap).forEach(k => { if (!activeKeys.has(k)) delete gruposMap[k] })
-      localStorage.setItem('tareas_grupos', JSON.stringify(gruposMap))
-      const merged = p.map(t => ({
-        ...t,
-        grupo: String(t.rowIndex) in gruposMap ? gruposMap[String(t.rowIndex)] : t.grupo,
-      }))
-      setPendientes(merged)
+      setPendientes(p)
       setFinalizados(f)
       setLastSync(new Date())
     } catch (err) {
@@ -878,7 +857,6 @@ export default function Tareas() {
         body: JSON.stringify({ field: 'grupo', value: grupoNombre }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
-      saveGrupoLocal(task.rowIndex, grupoNombre)
       setPendientes(prev => prev.map(t => t.rowIndex === task.rowIndex ? { ...t, grupo: grupoNombre } : t))
     } catch (err) {
       setError('Error al asignar grupo: ' + err.message)
@@ -906,8 +884,6 @@ export default function Tareas() {
         const d = await errRes.json()
         throw new Error(d.error || 'Error al crear grupo')
       }
-      saveGrupoLocal(taskA.rowIndex, grupoNombre)
-      saveGrupoLocal(taskB.rowIndex, grupoNombre)
       setPendientes(prev => prev.map(t =>
         t.rowIndex === taskA.rowIndex || t.rowIndex === taskB.rowIndex
           ? { ...t, grupo: grupoNombre }
