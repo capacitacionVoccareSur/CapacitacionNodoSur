@@ -733,8 +733,8 @@ export default function Tareas() {
     setError(null)
     try {
       const [pRes, fRes] = await Promise.all([
-        fetch('/api/tareas'),
-        fetch('/api/tareas/finalizados'),
+        fetch('/api/tareas', { cache: 'no-store' }),
+        fetch('/api/tareas/finalizados', { cache: 'no-store' }),
       ])
       if (!pRes.ok || !fRes.ok) throw new Error('Error al conectar con Google Sheets')
       const [p, f] = await Promise.all([pRes.json(), fRes.json()])

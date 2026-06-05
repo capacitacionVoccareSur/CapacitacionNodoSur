@@ -104,6 +104,7 @@ router.post('/', async (req, res) => {
       'Pendiente',  // documentacion_inicial
       'NO',         // finalizado
       '', '', '',   // mail, mail2, documento
+      '',           // grupo — sin grupo al crear
     ])
     res.status(201).json({ success: true })
   } catch (err) {
