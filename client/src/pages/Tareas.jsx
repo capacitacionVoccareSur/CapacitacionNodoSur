@@ -956,6 +956,10 @@ export default function Tareas() {
     })
 
   const { groups, ungrouped } = groupTasks(filteredPendientes)
+  console.log('[debug render] pendientes:', pendientes.length, '| filtered:', filteredPendientes.length,
+    '| grupos:', Object.keys(groups), '| ungrouped:', ungrouped.length,
+    '| paisFilter:', paisFilter, '| prioFilter:', prioFilter,
+    '| loading:', loading)
 
   const lastSyncText = lastSync
     ? lastSync.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
