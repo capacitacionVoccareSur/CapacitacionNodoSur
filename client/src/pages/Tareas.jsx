@@ -724,9 +724,11 @@ export default function Tareas() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  // Group state
-  const [collapsedGroups, setCollapsedGroups] = useState({})
-  const [pendingGroup, setPendingGroup]       = useState(null)
+  // Group state — persisted in localStorage by group name (stable key)
+  const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('tareas_collapsedGroups') || '{}') } catch { return {} }
+  })
+  const [pendingGroup, setPendingGroup] = useState(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -738,9 +740,6 @@ export default function Tareas() {
       ])
       if (!pRes.ok || !fRes.ok) throw new Error('Error al conectar con Google Sheets')
       const [p, f] = await Promise.all([pRes.json(), fRes.json()])
-      const conGrupo = p.filter(t => t.grupo)
-      console.log(`[debug] API devuelve ${conGrupo.length} tareas con grupo de ${p.length} total:`,
-        conGrupo.map(t => `fila${t.rowIndex}="${t.grupo}"`))
       setPendientes(p)
       setFinalizados(f)
       setLastSync(new Date())
@@ -849,7 +848,11 @@ export default function Tareas() {
   // ─── Group + sort handlers ────────────────────────────────────────────────────
 
   function toggleCollapse(nombre) {
-    setCollapsedGroups(prev => ({ ...prev, [nombre]: !prev[nombre] }))
+    setCollapsedGroups(prev => {
+      const next = { ...prev, [nombre]: !prev[nombre] }
+      localStorage.setItem('tareas_collapsedGroups', JSON.stringify(next))
+      return next
+    })
   }
 
   async function assignToGroup(task, grupoNombre) {
@@ -956,10 +959,6 @@ export default function Tareas() {
     })
 
   const { groups, ungrouped } = groupTasks(filteredPendientes)
-  console.log('[debug render] pendientes:', pendientes.length, '| filtered:', filteredPendientes.length,
-    '| grupos:', Object.keys(groups), '| ungrouped:', ungrouped.length,
-    '| paisFilter:', paisFilter, '| prioFilter:', prioFilter,
-    '| loading:', loading)
 
   const lastSyncText = lastSync
     ? lastSync.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
