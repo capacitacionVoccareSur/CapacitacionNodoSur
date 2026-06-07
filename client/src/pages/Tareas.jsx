@@ -738,6 +738,9 @@ export default function Tareas() {
       ])
       if (!pRes.ok || !fRes.ok) throw new Error('Error al conectar con Google Sheets')
       const [p, f] = await Promise.all([pRes.json(), fRes.json()])
+      const conGrupo = p.filter(t => t.grupo)
+      console.log(`[debug] API devuelve ${conGrupo.length} tareas con grupo de ${p.length} total:`,
+        conGrupo.map(t => `fila${t.rowIndex}="${t.grupo}"`))
       setPendientes(p)
       setFinalizados(f)
       setLastSync(new Date())
