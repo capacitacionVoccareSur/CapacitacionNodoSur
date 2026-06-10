@@ -72,25 +72,21 @@ async function updateSheetCell(sheetName, rowIndex, colLetter, value) {
 
 async function appendRow(sheetName, rowData) {
   const sheets = await getSheetsClient()
-  const sheetId = await getSheetId(sheetName)
 
-  const values = rowData.map(v => {
-    if (v === null || v === undefined || v === '') return {}
-    if (typeof v === 'number') return { userEnteredValue: { numberValue: v } }
-    return { userEnteredValue: { stringValue: String(v) } }
-  })
-
-  await sheets.spreadsheets.batchUpdate({
+  // Read column C (tarea — always populated) to determine the real last row.
+  // This avoids relying on any Google Sheets "table detection" heuristic that
+  // miscalculates when other columns (mail, documento, grupo) are sparse.
+  const colRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID(),
-    requestBody: {
-      requests: [{
-        appendCells: {
-          sheetId,
-          rows: [{ values }],
-          fields: 'userEnteredValue',
-        },
-      }],
-    },
+    range: `'${sheetName}'!C:C`,
+  })
+  const nextRow = (colRes.data.values || []).length + 1
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID(),
+    range: `'${sheetName}'!A${nextRow}:L${nextRow}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [rowData] },
   })
 }
 
