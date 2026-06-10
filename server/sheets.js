@@ -72,12 +72,25 @@ async function updateSheetCell(sheetName, rowIndex, colLetter, value) {
 
 async function appendRow(sheetName, rowData) {
   const sheets = await getSheetsClient()
-  await sheets.spreadsheets.values.append({
+  const sheetId = await getSheetId(sheetName)
+
+  const values = rowData.map(v => {
+    if (v === null || v === undefined || v === '') return {}
+    if (typeof v === 'number') return { userEnteredValue: { numberValue: v } }
+    return { userEnteredValue: { stringValue: String(v) } }
+  })
+
+  await sheets.spreadsheets.batchUpdate({
     spreadsheetId: SPREADSHEET_ID(),
-    range: `'${sheetName}'!A1`,
-    valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [rowData] },
+    requestBody: {
+      requests: [{
+        appendCells: {
+          sheetId,
+          rows: [{ values }],
+          fields: 'userEnteredValue',
+        },
+      }],
+    },
   })
 }
 
