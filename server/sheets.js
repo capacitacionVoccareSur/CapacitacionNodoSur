@@ -73,13 +73,27 @@ async function updateSheetCell(sheetName, rowIndex, colLetter, value) {
 async function appendRow(sheetName, rowData) {
   const sheets = await getSheetsClient()
 
-  // We use the official append method which is more reliable than manual calculation.
-  // It automatically finds the next available row at the end of the specified range.
-  await sheets.spreadsheets.values.append({
+  // We read the current values to find the absolute last row with data.
+  // Google's values.append heuristic can fail with sparse data, causing overwrites.
+  const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID(),
     range: `'${sheetName}'!A:L`,
+  })
+
+  const rows = res.data.values || []
+  let nextRow = 1
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i]
+    if (row && row.some(cell => cell && cell.toString().trim() !== '')) {
+      nextRow = i + 2 // i is 0-based index, so i+1 is the row number, i+2 is the row after.
+      break
+    }
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID(),
+    range: `'${sheetName}'!A${nextRow}:L${nextRow}`,
     valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'OVERWRITE',
     requestBody: { values: [rowData] },
   })
 }
