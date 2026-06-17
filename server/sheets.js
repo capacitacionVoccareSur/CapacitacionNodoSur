@@ -73,19 +73,13 @@ async function updateSheetCell(sheetName, rowIndex, colLetter, value) {
 async function appendRow(sheetName, rowData) {
   const sheets = await getSheetsClient()
 
-  // Read column C (tarea — always populated) to determine the real last row.
-  // This avoids relying on any Google Sheets "table detection" heuristic that
-  // miscalculates when other columns (mail, documento, grupo) are sparse.
-  const colRes = await sheets.spreadsheets.values.get({
+  // We use the official append method which is more reliable than manual calculation.
+  // It automatically finds the next available row at the end of the specified range.
+  await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID(),
-    range: `'${sheetName}'!C:C`,
-  })
-  const nextRow = (colRes.data.values || []).length + 1
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID(),
-    range: `'${sheetName}'!A${nextRow}:L${nextRow}`,
+    range: `'${sheetName}'!A:L`,
     valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'OVERWRITE',
     requestBody: { values: [rowData] },
   })
 }
